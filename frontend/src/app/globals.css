@@ -1,0 +1,26 @@
+@import "tailwindcss";
+
+:root {
+  --background: #FFF8F0;
+  --foreground: #1a1a1a;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+@keyframes pop {
+  0% { transform: scale(0); }
+  60% { transform: scale(1.2); }
+  100% { transform: scale(1); }
+}
+
+.animate-pop {
+  animation: pop 0.25s ease-out forwards;
+}
+
+/* Override Tailwind border-3 */
+.border-3 {
+  border-width: 3px;
+}
