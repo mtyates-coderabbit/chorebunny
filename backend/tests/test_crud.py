@@ -134,3 +134,37 @@ class TestGetTasks:
 
         tasks = crud.get_tasks(db, routine="morning", active_only=False)
         assert len(tasks) == 1
+
+
+class TestRangeSummary:
+    @pytest.mark.parametrize("end", [date(2026, 1, 1), date.max])
+    def test_inclusive_range_keeps_last_day(self, db, morning_task, end):
+        from datetime import timedelta
+
+        start = end - timedelta(days=1)
+        crud.toggle_completion(db, morning_task.id, end)
+        summary = crud.get_range_summary(db, start, end)
+        assert [day.date for day in summary.days] == [start, end]
+        assert [day.earned_carrots for day in summary.days] == [0, morning_task.carrot_value]
+        assert len(crud.get_range_summary(db, end, end).days) == 1
+
+    def test_daily_earnings_are_isolated_by_routine(self, db, morning_task, evening_task):
+        from datetime import timedelta
+
+        start = date(2026, 9, 1)
+        end = start + timedelta(days=2)
+        crud.toggle_completion(db, morning_task.id, start)
+        crud.toggle_completion(db, evening_task.id, start + timedelta(days=1))
+        hidden = Task(name="Hidden", routine="morning", carrot_value=5, is_active=False)
+        db.add(hidden)
+        db.commit()
+        crud.toggle_completion(db, hidden.id, start)
+
+        summary = crud.get_range_summary(db, start, end)
+        assert [day.morning_earned_carrots for day in summary.days] == [1, 0, 0]
+        assert [day.evening_earned_carrots for day in summary.days] == [0, 2, 0]
+        assert [day.earned_carrots for day in summary.days] == [1, 2, 0]
+        assert all(day.total_carrots == 3 for day in summary.days)
+        assert {stat.task_id: stat.count for stat in summary.task_stats} == {
+            morning_task.id: 1, evening_task.id: 1,
+        }

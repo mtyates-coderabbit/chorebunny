@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { formatLocalDate } from "@/lib/dates";
 import Link from "next/link";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useTasks } from "@/hooks/useTasks";
@@ -15,17 +16,13 @@ interface Props {
   routine: "morning" | "evening";
 }
 
-function today() {
-  return new Date().toISOString().split("T")[0];
-}
-
 /**
- * Show the selected routine's tasks and carrot progress for the current UTC date.
+ * Show the selected routine's tasks and carrot progress for the current local date.
  * Task clicks toggle completion; a successful final-task toggle triggers a
  * celebration at most once while this view remains mounted.
  */
 export function RoutineView({ routine }: Props) {
-  const date = today();
+  const date = formatLocalDate(new Date());
   const [celebrated, setCelebrated] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
@@ -84,12 +81,14 @@ export function RoutineView({ routine }: Props) {
             </Link>
             <Link
               href="/tasks"
+              aria-label="Task settings"
               className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
             >
               ⚙️
             </Link>
             <Link
               href="/metrics"
+              aria-label="Metrics"
               className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
             >
               📊

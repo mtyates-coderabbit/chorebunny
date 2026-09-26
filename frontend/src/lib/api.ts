@@ -49,8 +49,8 @@ export function fetchSummary(date: string): Promise<DailySummary> {
 }
 
 /**
- * Fetch daily carrot totals for inclusive YYYY-MM-DD bounds; reversed bounds
- * return no days. Rejects on HTTP errors with status and response text, and
+ * Fetch daily carrot totals for inclusive YYYY-MM-DD bounds (at most 366 days).
+ * Rejects reversed ranges and HTTP errors with status and response text, and
  * propagates network, response-reading, and JSON parsing failures.
  */
 export function fetchRangeSummary(startDate: string, endDate: string): Promise<RangeSummary> {

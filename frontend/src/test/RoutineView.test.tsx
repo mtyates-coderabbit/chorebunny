@@ -1,6 +1,6 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, it, expect, vi, beforeEach } from "vitest";
+import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RoutineView } from "@/components/RoutineView";
 import type { Task, Completion, ToggleResult } from "@/lib/types";
@@ -29,6 +29,18 @@ function wrapper() {
 }
 
 describe("RoutineView", () => {
+  afterEach(() => vi.useRealTimers());
+
+  it.each([0, 23])("uses the local date in the header and query at %i:30", async (hour) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 2, 10, hour, 30));
+    vi.mocked(api.fetchCompletions).mockClear();
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning");
+    expect(screen.getByText(/Tuesday, March 10/)).toBeInTheDocument();
+  });
+
   beforeEach(() => {
     vi.mocked(api.fetchTasks).mockResolvedValue(MORNING_TASKS);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
