@@ -2,7 +2,7 @@
 
 A rabbit-themed chore tracker for kids. Helps children complete their morning and evening routines by earning carrot rewards for each task.
 
-![ChoreBunny screenshot](https://via.placeholder.com/800x400?text=ChoreBunny)
+![ChoreBunny screenshot](docs/screenshot.png)
 
 ## Features
 
