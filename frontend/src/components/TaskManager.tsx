@@ -17,13 +17,14 @@ export function TaskManager() {
     description: "",
     routine: "morning" as "morning" | "evening",
     carrot_value: 1,
+    estimated_minutes: "",
   });
 
   const createMutation = useMutation({
     mutationFn: createTask,
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["tasks"] });
-      setForm({ name: "", description: "", routine: "morning", carrot_value: 1 });
+      setForm({ name: "", description: "", routine: "morning", carrot_value: 1, estimated_minutes: "" });
     },
   });
 
@@ -41,7 +42,11 @@ export function TaskManager() {
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
-    createMutation.mutate({ ...form, description: form.description || undefined });
+    createMutation.mutate({
+      ...form,
+      description: form.description || undefined,
+      estimated_minutes: form.estimated_minutes ? Number(form.estimated_minutes) : undefined,
+    });
   };
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
@@ -90,6 +95,18 @@ export function TaskManager() {
               ))}
             </select>
           </div>
+          <div className="flex items-center gap-2 text-sm">
+            <label className="text-gray-500 whitespace-nowrap">⏱ Min:</label>
+            <input
+              type="number"
+              min={1}
+              max={180}
+              className="border border-gray-200 rounded-xl px-2 py-2 text-sm w-16"
+              placeholder="—"
+              value={form.estimated_minutes}
+              onChange={(e) => setForm({ ...form, estimated_minutes: e.target.value })}
+            />
+          </div>
         </div>
         <button
           type="submit"
@@ -122,6 +139,9 @@ export function TaskManager() {
                       <p className="text-xs text-gray-400 truncate">{task.description}</p>
                     )}
                   </div>
+                  {task.estimated_minutes && (
+                    <span className="text-xs text-gray-400 whitespace-nowrap">⏱ {task.estimated_minutes}m</span>
+                  )}
                   <span className="text-sm text-gray-400">{"🥕".repeat(task.carrot_value)}</span>
                   <button
                     onClick={() =>

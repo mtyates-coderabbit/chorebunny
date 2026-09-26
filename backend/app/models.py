@@ -14,6 +14,7 @@ class Task(Base):
     description: Mapped[str | None] = mapped_column(String, nullable=True)
     routine: Mapped[str] = mapped_column(String, nullable=False)
     carrot_value: Mapped[int] = mapped_column(Integer, nullable=False, default=1)
+    estimated_minutes: Mapped[int | None] = mapped_column(Integer, nullable=True)
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
     sort_order: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
     created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
