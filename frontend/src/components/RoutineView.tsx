@@ -7,6 +7,7 @@ import { useTasks } from "@/hooks/useTasks";
 import { useToggleCompletion } from "@/hooks/useToggleCompletion";
 import { CarrotCounter } from "./CarrotCounter";
 import { CelebrationOverlay } from "./CelebrationOverlay";
+import { ChoreBunnyLogo } from "./ChoreBunnyLogo";
 import { RabbitMascot } from "./RabbitMascot";
 import { TaskCard } from "./TaskCard";
 
@@ -66,29 +67,38 @@ export function RoutineView({ routine }: Props) {
       )}
 
       {/* Header */}
-      <header className="flex items-center justify-between px-5 pt-6 pb-2">
-        <div>
-          <h1 className="text-2xl font-extrabold text-gray-800 capitalize">
-            {routine === "morning" ? "☀️" : "🌙"} {routine} routine
-          </h1>
-          <p className="text-sm text-gray-400 font-medium">
-            {completedCount}/{totalCount} done
-          </p>
+      <header className="px-5 pt-5 pb-2">
+        <div className="flex items-center justify-between mb-3">
+          <ChoreBunnyLogo size="sm" />
+          <div className="flex gap-2">
+            <Link
+              href={`/${other}`}
+              className="text-sm font-semibold text-orange-400 hover:text-orange-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-orange-100"
+            >
+              {other === "morning" ? "☀️" : "🌙"} {other}
+            </Link>
+            <Link
+              href="/tasks"
+              className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
+            >
+              ⚙️
+            </Link>
+            <Link
+              href="/metrics"
+              className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
+            >
+              📊
+            </Link>
+          </div>
         </div>
-        <div className="flex gap-2">
-          <Link
-            href={`/${other}`}
-            className="text-sm font-semibold text-orange-400 hover:text-orange-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-orange-100"
-          >
-            {other === "morning" ? "☀️" : "🌙"} {other}
-          </Link>
-          <Link
-            href="/tasks"
-            className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
-          >
-            ⚙️
-          </Link>
-        </div>
+        <h1 className="text-2xl font-extrabold text-gray-800 capitalize">
+          {routine === "morning" ? "☀️" : "🌙"} {routine} routine
+        </h1>
+        <p className="text-sm font-medium mt-0.5" style={{ color: "#C4956A" }}>
+          {new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(date + "T00:00:00"))}
+          {" · "}
+          {completedCount}/{totalCount} done
+        </p>
       </header>
 
       {/* Mascot + carrot counter */}

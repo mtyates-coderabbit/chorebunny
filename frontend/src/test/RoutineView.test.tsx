@@ -51,7 +51,7 @@ describe("RoutineView", () => {
 
   it("shows 0/N done initially", async () => {
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
-    await screen.findByText("0/2 done");
+    await screen.findByText(/0\/2 done/);
   });
 
   it("calls toggleCompletion when a task card is clicked", async () => {

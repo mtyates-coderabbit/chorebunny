@@ -24,3 +24,51 @@ body {
 .border-3 {
   border-width: 3px;
 }
+
+/* Rabbit mascot animations */
+@keyframes breathe {
+  0%, 100% { transform: scaleY(1) translateY(0); }
+  50%       { transform: scaleY(1.07) translateY(-2px); }
+}
+
+@keyframes floatZ {
+  0%   { opacity: 0; transform: translate(0, 0) scale(0.5); }
+  35%  { opacity: 1; }
+  100% { opacity: 0; transform: translate(16px, -26px) scale(1.1); }
+}
+
+@keyframes earTwitch {
+  0%, 60%, 100% { transform: rotate(0deg); }
+  65%  { transform: rotate(-10deg); }
+  74%  { transform: rotate(7deg); }
+  82%  { transform: rotate(-5deg); }
+  90%  { transform: rotate(3deg); }
+}
+
+@keyframes earWave {
+  0%, 100% { transform: rotate(0deg); }
+  25%  { transform: rotate(-8deg); }
+  50%  { transform: rotate(7deg); }
+  75%  { transform: rotate(-5deg); }
+}
+
+@keyframes sway {
+  0%, 100% { transform: rotate(-2.5deg); }
+  50%      { transform: rotate(2.5deg); }
+}
+
+@keyframes rabbitBounce {
+  0%, 100% { transform: translateY(0); }
+  45%      { transform: translateY(-13px); }
+}
+
+@keyframes spinStar {
+  from { transform: rotate(0deg) scale(1); }
+  50%  { transform: rotate(180deg) scale(1.5); }
+  to   { transform: rotate(360deg) scale(1); }
+}
+
+@keyframes blush {
+  0%, 100% { opacity: 0.45; }
+  50%      { opacity: 0.85; }
+}
