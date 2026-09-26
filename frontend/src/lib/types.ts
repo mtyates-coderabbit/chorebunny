@@ -54,6 +54,8 @@ export interface TaskUpdate {
 }
 
 export interface DayCarrots {
+  morning_earned_carrots: number;
+  evening_earned_carrots: number;
   date: string;
   earned_carrots: number;
   total_carrots: number;

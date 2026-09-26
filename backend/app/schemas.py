@@ -72,6 +72,8 @@ class DayCarrots(BaseModel):
     date: date
     earned_carrots: int
     total_carrots: int
+    morning_earned_carrots: int
+    evening_earned_carrots: int
 
 
 class TaskStat(BaseModel):

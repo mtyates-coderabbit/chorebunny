@@ -103,7 +103,7 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
     Both routines use currently active tasks and their current carrot values,
     including for past dates. Each day has the same available total; days with
     no completions earn zero. A reversed range returns an empty days list.
-    Database errors propagate, as does OverflowError when end_date is date.max.
+    Database errors propagate.
     """
     all_tasks = get_tasks(db, active_only=True)
     total_carrots = sum(t.carrot_value for t in all_tasks)
@@ -119,6 +119,7 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
     )
 
     earned_by_date: dict[date, int] = {}
+    earned_by_routine: dict[tuple[date, str], int] = {}
     count_by_task: dict[int, int] = {}
     for c in completions:
         task = next((t for t in all_tasks if t.id == c.task_id), None)
@@ -126,6 +127,8 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
             earned_by_date[c.completion_date] = (
                 earned_by_date.get(c.completion_date, 0) + task.carrot_value
             )
+            key = (c.completion_date, task.routine)
+            earned_by_routine[key] = earned_by_routine.get(key, 0) + task.carrot_value
             count_by_task[c.task_id] = count_by_task.get(c.task_id, 0) + 1
 
     days: list[schemas.DayCarrots] = []
@@ -135,7 +138,11 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
             date=current,
             earned_carrots=earned_by_date.get(current, 0),
             total_carrots=total_carrots,
+            morning_earned_carrots=earned_by_routine.get((current, "morning"), 0),
+            evening_earned_carrots=earned_by_routine.get((current, "evening"), 0),
         ))
+        if current == end_date:
+            break
         current += timedelta(days=1)
 
     task_stats = [

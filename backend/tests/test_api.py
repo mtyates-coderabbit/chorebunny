@@ -137,3 +137,34 @@ class TestSummaryAPI:
         res = client.get("/health")
         assert res.status_code == 200
         assert res.json() == {"status": "ok"}
+
+
+class TestRangeSummaryAPI:
+    @pytest.mark.parametrize("start,end", [
+        ("2026-09-02", "2026-09-01"),
+        ("2024-01-01", "2025-01-01"),  # 367 inclusive days
+        ("0001-01-01", "9999-12-31"),
+    ])
+    def test_invalid_ranges_rejected_before_crud(self, client, monkeypatch, start, end):
+        from unittest.mock import Mock
+        from app import crud
+
+        query = Mock()
+        monkeypatch.setattr(crud, "get_range_summary", query)
+        response = client.get("/api/summary/range", params={"start_date": start, "end_date": end})
+        assert response.status_code == 422
+        query.assert_not_called()
+
+    @pytest.mark.parametrize("start,end,count", [
+        ("2024-01-01", "2024-12-31", 366),
+        ("9999-12-31", "9999-12-31", 1),
+    ])
+    def test_boundary_ranges_succeed(self, client, start, end, count):
+        response = client.get("/api/summary/range", params={"start_date": start, "end_date": end})
+        assert response.status_code == 200
+        days = response.json()["days"]
+        assert len(days) == count
+        assert days[0]["date"] == start
+        assert days[-1]["date"] == end
+        assert days[-1]["morning_earned_carrots"] == 0
+        assert days[-1]["evening_earned_carrots"] == 0

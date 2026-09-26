@@ -7,21 +7,14 @@ import {
 } from "recharts";
 import { useRangeSummary } from "@/hooks/useRangeSummary";
 import { useTasks } from "@/hooks/useTasks";
+import { formatLocalDate } from "@/lib/dates";
 import type { DayCarrots } from "@/lib/types";
 
-/**
- * Shift the current local calendar date back by n days, then return its UTC
- * date as YYYY-MM-DD. Throws RangeError if the resulting date is invalid.
- */
-function daysAgo(n: number): string {
-  const d = new Date();
+/** Shift a local calendar date back by n days and format it as YYYY-MM-DD. */
+function daysAgo(n: number, from: Date): string {
+  const d = new Date(from);
   d.setDate(d.getDate() - n);
-  return d.toISOString().split("T")[0];
-}
-
-/** Return the current UTC date as YYYY-MM-DD. */
-function today(): string {
-  return new Date().toISOString().split("T")[0];
+  return formatLocalDate(d);
 }
 
 /**
@@ -61,22 +54,25 @@ interface HeatmapProps {
 }
 
 /**
- * Render carrot totals with hover details in seven-entry columns, preserving
- * input order without padding missing dates or aligning the first weekday.
+ * Render daily carrot totals in Sunday-first week columns with hover details.
  */
 function Heatmap({ days }: HeatmapProps) {
   const [tooltip, setTooltip] = useState<{ day: DayCarrots; x: number; y: number } | null>(null);
 
-  const weeks: DayCarrots[][] = [];
-  for (let i = 0; i < days.length; i += 7) {
-    weeks.push(days.slice(i, i + 7));
+  const offset = days.length ? new Date(days[0].date + "T00:00:00").getDay() : 0;
+  const cells: (DayCarrots | null)[] = [...Array<null>(offset).fill(null), ...days];
+  const weeks: (DayCarrots | null)[][] = [];
+  for (let i = 0; i < cells.length; i += 7) {
+    weeks.push(cells.slice(i, i + 7));
   }
 
   const monthLabels = useMemo(() => {
     const labels: { label: string; col: number }[] = [];
     let lastMonth = "";
     weeks.forEach((week, col) => {
-      const month = formatMonth(week[0].date);
+      const firstDay = week.find((day) => day !== null);
+      if (!firstDay) return;
+      const month = formatMonth(firstDay.date);
       if (month !== lastMonth) {
         labels.push({ label: month, col });
         lastMonth = month;
@@ -111,7 +107,7 @@ function Heatmap({ days }: HeatmapProps) {
         <div style={{ display: "flex", gap: 2 }}>
           {weeks.map((week, wi) => (
             <div key={wi} style={{ display: "flex", flexDirection: "column", gap: 2 }}>
-              {week.map((day) => (
+              {week.map((day, di) => day ? (
                 <div
                   key={day.date}
                   role="img"
@@ -133,6 +129,8 @@ function Heatmap({ days }: HeatmapProps) {
                     outline: "none",
                   }}
                 />
+              ) : (
+                <div key={`empty-${di}`} aria-hidden="true" style={{ width: 12, height: 12, flexShrink: 0 }} />
               ))}
             </div>
           ))}
@@ -172,15 +170,15 @@ function Heatmap({ days }: HeatmapProps) {
 
 /**
  * Load a 90-day carrot calendar and show trends for its last 30 days.
- * Each trend divides combined earned carrots by the current routine total
- * (zero when that total is zero); task bars currently use zero counts.
+ * Each trend divides its routine's earned carrots by the current routine total
+ * (zero when that total is zero).
  */
 export function MetricsView() {
-  const end = today();
-  const start90 = daysAgo(89);
-  const start30 = daysAgo(29);
+  const now = new Date();
+  const end = formatLocalDate(now);
+  const start90 = daysAgo(89, now);
 
-  const { data: range90, isLoading: loading90 } = useRangeSummary(start90, end);
+  const { data: range90, isLoading: loading90, isError: error90 } = useRangeSummary(start90, end);
   const { data: morningTasks = [] } = useTasks("morning");
   const { data: eveningTasks = [] } = useTasks("evening");
 
@@ -190,8 +188,8 @@ export function MetricsView() {
     const eTotal = eveningTasks.reduce((s, t) => s + t.carrot_value, 0);
     return range90.days.slice(-30).map((d) => ({
       date: formatShortDate(d.date),
-      morning: mTotal > 0 ? Math.round((d.earned_carrots / mTotal) * 100) : 0,
-      evening: eTotal > 0 ? Math.round((d.earned_carrots / eTotal) * 100) : 0,
+      morning: mTotal > 0 ? Math.round((d.morning_earned_carrots / mTotal) * 100) : 0,
+      evening: eTotal > 0 ? Math.round((d.evening_earned_carrots / eTotal) * 100) : 0,
     }));
   }, [range90, morningTasks, eveningTasks]);
 
@@ -202,6 +200,10 @@ export function MetricsView() {
 
   if (loading90) {
     return <div className="px-5 py-10 text-center text-gray-400 font-semibold">Loading metrics...</div>;
+  }
+
+  if (error90) {
+    return <div role="alert" className="px-5 py-10 text-center text-gray-400 font-semibold">Unable to load metrics. Please try again.</div>;
   }
 
   return (
@@ -227,7 +229,7 @@ export function MetricsView() {
               <CartesianGrid strokeDasharray="3 3" stroke="#F0E8DC"/>
               <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
               <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }}/>
-              <Tooltip formatter={(v: number) => `${v}%`} />
+              <Tooltip formatter={(v) => `${v}%`} />
               <Line type="monotone" dataKey="morning" stroke="#F97316" strokeWidth={2} dot={false} name="Morning"/>
               <Line type="monotone" dataKey="evening" stroke="#7DD3FC" strokeWidth={2} dot={false} name="Evening"/>
             </LineChart>
@@ -256,7 +258,7 @@ export function MetricsView() {
               >
                 <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false}/>
                 <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }}/>
-                <Tooltip formatter={(v: number) => [`${v} completions`]}/>
+                <Tooltip formatter={(v) => [`${v} completions`]}/>
                 <Bar dataKey="count" radius={[0, 4, 4, 0]}>
                   {taskCompletionCounts.map((entry, i) => (
                     <Cell key={i} fill={entry.routine === "morning" ? "#F97316" : "#7DD3FC"}/>

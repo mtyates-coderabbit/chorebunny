@@ -44,10 +44,17 @@ export function RabbitMascot({ percent }: Props) {
     <div className="flex flex-col items-center">
       <svg
         viewBox="0 0 80 110"
-        className="w-36 h-auto"
+        className="rabbit-mascot w-36 h-auto"
         style={{ overflow: "visible" }}
         aria-label={`Rabbit mascot: ${label}`}
       >
+        <style>{`
+          @media (prefers-reduced-motion: reduce) {
+            .rabbit-mascot, .rabbit-mascot * {
+              animation: none !important;
+            }
+          }
+        `}</style>
         {/* Floating Zzz (sleepy only) */}
         {isSleepy && (
           <g>
