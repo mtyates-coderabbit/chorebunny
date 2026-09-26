@@ -9,6 +9,11 @@ type MorningMood = "sleepy" | "waking" | "happy" | "excited" | "celebrating";
 type EveningMood = "calm" | "focused" | "proud" | "nearly_done" | "celebrating";
 type Mood = MorningMood | EveningMood;
 
+/**
+ * Map completion percentage to sleepy at zero, waking through 25, happy
+ * through 50, excited below 100, and celebrating otherwise. Values are not
+ * clamped: negative values are waking, and NaN falls through to celebrating.
+ */
 function getMorningMood(percent: number): MorningMood {
   if (percent === 0) return "sleepy";
   if (percent <= 25) return "waking";
@@ -17,6 +22,10 @@ function getMorningMood(percent: number): MorningMood {
   return "celebrating";
 }
 
+/**
+ * Map evening completion percentage to calm at zero, focused through 33,
+ * proud through 66, nearly done below 100, and celebrating otherwise.
+ */
 function getEveningMood(percent: number): EveningMood {
   if (percent === 0) return "calm";
   if (percent <= 33) return "focused";
