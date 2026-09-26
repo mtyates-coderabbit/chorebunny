@@ -2,16 +2,19 @@
 
 interface Props {
   percent: number;
+  routine?: "morning" | "evening";
 }
 
-type Mood = "sleepy" | "waking" | "happy" | "excited" | "celebrating";
+type MorningMood = "sleepy" | "waking" | "happy" | "excited" | "celebrating";
+type EveningMood = "calm" | "focused" | "proud" | "nearly_done" | "celebrating";
+type Mood = MorningMood | EveningMood;
 
 /**
  * Map completion percentage to sleepy at zero, waking through 25, happy
  * through 50, excited below 100, and celebrating otherwise. Values are not
  * clamped: negative values are waking, and NaN falls through to celebrating.
  */
-function getMood(percent: number): Mood {
+function getMorningMood(percent: number): MorningMood {
   if (percent === 0) return "sleepy";
   if (percent <= 25) return "waking";
   if (percent <= 50) return "happy";
@@ -19,21 +22,44 @@ function getMood(percent: number): Mood {
   return "celebrating";
 }
 
-const MOODS: Record<Mood, { label: string; bodyAnim: string; earAnim: string }> = {
-  sleepy:      { label: "Still waking up...",  bodyAnim: "breathe 3.2s ease-in-out infinite", earAnim: "none" },
-  waking:      { label: "Getting started!",    bodyAnim: "none",                               earAnim: "earTwitch 3.5s ease-in-out infinite" },
-  happy:       { label: "Doing great!",        bodyAnim: "sway 2.8s ease-in-out infinite",    earAnim: "none" },
-  excited:     { label: "Almost there!",       bodyAnim: "rabbitBounce 0.75s ease-in-out infinite", earAnim: "none" },
-  celebrating: { label: "Amazing job! 🎉",     bodyAnim: "rabbitBounce 0.48s ease-in-out infinite", earAnim: "earWave 0.9s ease-in-out infinite" },
+/**
+ * Map evening completion percentage to calm at zero, focused through 33,
+ * proud through 66, nearly done below 100, and celebrating otherwise.
+ */
+function getEveningMood(percent: number): EveningMood {
+  if (percent === 0) return "calm";
+  if (percent <= 33) return "focused";
+  if (percent <= 66) return "proud";
+  if (percent < 100) return "nearly_done";
+  return "celebrating";
+}
+
+const MORNING_MOODS: Record<MorningMood, { label: string; bodyAnim: string; earAnim: string }> = {
+  sleepy:      { label: "Still waking up...",  bodyAnim: "breathe 3.2s ease-in-out infinite",       earAnim: "none" },
+  waking:      { label: "Getting started!",    bodyAnim: "none",                                      earAnim: "earTwitch 3.5s ease-in-out infinite" },
+  happy:       { label: "Doing great!",        bodyAnim: "sway 2.8s ease-in-out infinite",           earAnim: "none" },
+  excited:     { label: "Almost there!",       bodyAnim: "rabbitBounce 0.75s ease-in-out infinite",  earAnim: "none" },
+  celebrating: { label: "Amazing job! 🎉",     bodyAnim: "rabbitBounce 0.48s ease-in-out infinite",  earAnim: "earWave 0.9s ease-in-out infinite" },
+};
+
+const EVENING_MOODS: Record<EveningMood, { label: string; bodyAnim: string; earAnim: string }> = {
+  calm:        { label: "Ready to finish strong!", bodyAnim: "breathe 4s ease-in-out infinite",          earAnim: "none" },
+  focused:     { label: "Getting things done...",  bodyAnim: "sway 3.5s ease-in-out infinite",           earAnim: "none" },
+  proud:       { label: "Making great progress!",  bodyAnim: "rabbitBounce 1.1s ease-in-out infinite",   earAnim: "none" },
+  nearly_done: { label: "Almost finished!",        bodyAnim: "rabbitBounce 0.85s ease-in-out infinite",  earAnim: "none" },
+  celebrating: { label: "Day complete! 🌙",        bodyAnim: "rabbitBounce 0.48s ease-in-out infinite",  earAnim: "earWave 0.9s ease-in-out infinite" },
 };
 
 /** Render an animated rabbit and encouragement for completion on a 0–100 scale. */
-export function RabbitMascot({ percent }: Props) {
-  const mood = getMood(percent);
-  const { label, bodyAnim, earAnim } = MOODS[mood];
+export function RabbitMascot({ percent, routine = "morning" }: Props) {
+  const isEvening = routine === "evening";
+  const mood = isEvening ? getEveningMood(percent) : getMorningMood(percent);
+  const moodDef = isEvening ? EVENING_MOODS[mood as EveningMood] : MORNING_MOODS[mood as MorningMood];
+  const { label, bodyAnim, earAnim } = moodDef;
   const isSleepy = mood === "sleepy";
   const isWaking = mood === "waking";
-  const showCheeks = mood === "excited" || mood === "celebrating";
+  const isCalm = mood === "calm";
+  const showCheeks = mood === "excited" || mood === "nearly_done" || mood === "celebrating";
   const isCelebrating = mood === "celebrating";
 
   const cheekDuration = isCelebrating ? "0.5s" : "1s";
@@ -55,12 +81,21 @@ export function RabbitMascot({ percent }: Props) {
             }
           }
         `}</style>
-        {/* Floating Zzz (sleepy only) */}
+        {/* Floating Zzz (morning sleepy only) */}
         {isSleepy && (
           <g>
             <text x="54" y="22" fontSize="7" fill="#94A3B8" style={{ animation: "floatZ 2.4s ease-in-out infinite" }}>z</text>
             <text x="61" y="13" fontSize="11" fill="#94A3B8" style={{ animation: "floatZ 2.4s ease-in-out infinite 0.8s" }}>Z</text>
             <text x="69" y="6"  fontSize="7"  fill="#94A3B8" style={{ animation: "floatZ 2.4s ease-in-out infinite 1.5s" }}>z</text>
+          </g>
+        )}
+
+        {/* Floating moons (evening calm only) */}
+        {isCalm && (
+          <g>
+            <text x="54" y="22" fontSize="9"  style={{ animation: "floatZ 3.5s ease-in-out infinite" }}>🌙</text>
+            <text x="63" y="12" fontSize="7"  style={{ animation: "floatZ 3.5s ease-in-out infinite 1.2s" }}>⭐</text>
+            <text x="69" y="22" fontSize="6"  style={{ animation: "floatZ 3.5s ease-in-out infinite 2.2s" }}>✨</text>
           </g>
         )}
 
@@ -125,6 +160,19 @@ export function RabbitMascot({ percent }: Props) {
               <circle cx="48" cy="49.5" r="0.8" fill="#fff"/>
               <path d="M42.5,47 Q47,44 51.5,47" stroke="#E8C9A0" strokeWidth="2" fill="#F8F0E8" strokeLinecap="round"/>
             </>
+          ) : isCalm ? (
+            <>
+              {/* soft half-lidded eyes for calm evening state */}
+              <circle cx="33" cy="50" r="4.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
+              <circle cx="47" cy="50" r="4.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
+              <circle cx="33" cy="51" r="1.8" fill="#3D2B1F"/>
+              <circle cx="47" cy="51" r="1.8" fill="#3D2B1F"/>
+              <circle cx="34.2" cy="49" r="0.7" fill="#fff"/>
+              <circle cx="48.2" cy="49" r="0.7" fill="#fff"/>
+              {/* drooped eyelids */}
+              <path d="M28.5,48 Q33,45.5 37.5,48" stroke="#E8C9A0" strokeWidth="1.8" fill="#F8F0E8" strokeLinecap="round"/>
+              <path d="M42.5,48 Q47,45.5 51.5,48" stroke="#E8C9A0" strokeWidth="1.8" fill="#F8F0E8" strokeLinecap="round"/>
+            </>
           ) : isCelebrating ? (
             <>
               <circle cx="33" cy="49" r="5.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
@@ -149,8 +197,12 @@ export function RabbitMascot({ percent }: Props) {
           {/* Mouth */}
           {isSleepy  && <path d="M35,62 Q40,64 45,62"    stroke="#E8967A" strokeWidth="1.3" fill="none" strokeLinecap="round"/>}
           {isWaking  && <path d="M34,62 Q40,67 46,62"    stroke="#E8967A" strokeWidth="1.3" fill="none" strokeLinecap="round"/>}
+          {isCalm    && <path d="M34,62 Q40,66 46,62"    stroke="#E8967A" strokeWidth="1.3" fill="none" strokeLinecap="round"/>}
           {mood === "happy"       && <path d="M32,62 Q40,69 48,62"    stroke="#E8967A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>}
+          {mood === "focused"     && <path d="M33,62 Q40,68 47,62"    stroke="#E8967A" strokeWidth="1.4" fill="none" strokeLinecap="round"/>}
+          {mood === "proud"       && <path d="M31,62 Q40,71 49,62"    stroke="#E8967A" strokeWidth="1.5" fill="none" strokeLinecap="round"/>}
           {mood === "excited"     && <path d="M30,62 Q40,72 50,62"    stroke="#E8967A" strokeWidth="1.6" fill="none" strokeLinecap="round"/>}
+          {mood === "nearly_done" && <path d="M30,62 Q40,72 50,62"    stroke="#E8967A" strokeWidth="1.6" fill="none" strokeLinecap="round"/>}
           {isCelebrating          && <path d="M29,63 Q40,75 51,63"    stroke="#E8967A" strokeWidth="1.7" fill="none" strokeLinecap="round"/>}
 
           {/* Whiskers */}
