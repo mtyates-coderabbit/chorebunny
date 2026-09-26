@@ -22,8 +22,8 @@ const range: RangeSummary = {
   task_stats: [],
 };
 const tasks: Task[] = [
-  { id: 1, name: "Morning", routine: "morning", carrot_value: 2, is_active: true, description: null, sort_order: 0, created_at: "" },
-  { id: 2, name: "Evening", routine: "evening", carrot_value: 4, is_active: true, description: null, sort_order: 0, created_at: "" },
+  { id: 1, name: "Morning", routine: "morning", carrot_value: 2, estimated_minutes: null, is_active: true, description: null, sort_order: 0, created_at: "" },
+  { id: 2, name: "Evening", routine: "evening", carrot_value: 4, estimated_minutes: null, is_active: true, description: null, sort_order: 0, created_at: "" },
 ];
 
 function renderMetrics() {

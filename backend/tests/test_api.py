@@ -63,6 +63,24 @@ class TestTasksAPI:
         assert res.json()["name"] == "New name"
         assert res.json()["carrot_value"] == 3
 
+    def test_update_task_distinguishes_omitted_and_null_estimate(self, client):
+        create = client.post("/api/tasks", json={
+            "name": "Timed task", "routine": "morning", "estimated_minutes": 30,
+        })
+        task_id = create.json()["id"]
+
+        res = client.put(f"/api/tasks/{task_id}", json={"name": "Renamed task"})
+        assert res.status_code == 200
+        assert res.json()["estimated_minutes"] == 30
+
+        res = client.put(f"/api/tasks/{task_id}", json={"estimated_minutes": None})
+        assert res.status_code == 200
+        assert res.json()["estimated_minutes"] is None
+        assert res.json()["name"] == "Renamed task"
+
+        tasks = client.get("/api/tasks").json()
+        assert tasks[0]["estimated_minutes"] is None
+
     def test_update_nonexistent_task_returns_404(self, client):
         res = client.put("/api/tasks/9999", json={"name": "Ghost"})
         assert res.status_code == 404

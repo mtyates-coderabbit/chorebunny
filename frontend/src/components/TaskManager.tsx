@@ -97,8 +97,9 @@ export function TaskManager() {
             </select>
           </div>
           <div className="flex items-center gap-2 text-sm">
-            <label className="text-gray-500 whitespace-nowrap">⏱ Min:</label>
+            <label htmlFor="task-estimated-minutes" className="text-gray-500 whitespace-nowrap">Estimated duration (minutes):</label>
             <input
+              id="task-estimated-minutes"
               type="number"
               min={1}
               max={180}

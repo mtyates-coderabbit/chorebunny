@@ -17,8 +17,8 @@ vi.mock("@/lib/api", () => ({
 import * as api from "@/lib/api";
 
 const MORNING_TASKS: Task[] = [
-  { id: 1, name: "Brush teeth", description: null, routine: "morning", carrot_value: 1, is_active: true, sort_order: 0, created_at: "" },
-  { id: 2, name: "Make your bed", description: null, routine: "morning", carrot_value: 2, is_active: true, sort_order: 1, created_at: "" },
+  { id: 1, name: "Brush teeth", description: null, routine: "morning", carrot_value: 1, estimated_minutes: null, is_active: true, sort_order: 0, created_at: "" },
+  { id: 2, name: "Make your bed", description: null, routine: "morning", carrot_value: 2, estimated_minutes: null, is_active: true, sort_order: 1, created_at: "" },
 ];
 
 function wrapper() {
