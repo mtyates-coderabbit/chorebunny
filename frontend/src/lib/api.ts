@@ -1,10 +1,14 @@
 import type { Completion, DailySummary, RangeSummary, Task, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 const BASE = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
+const _apiKey = process.env.NEXT_PUBLIC_API_KEY;
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${BASE}${path}`, {
-    headers: { "Content-Type": "application/json" },
+    headers: {
+      "Content-Type": "application/json",
+      ...(_apiKey && { "X-Api-Key": _apiKey }),
+    },
     ...init,
   });
   if (!res.ok) throw new Error(`API ${res.status}: ${await res.text()}`);

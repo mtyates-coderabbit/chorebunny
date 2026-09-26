@@ -1,8 +1,9 @@
 import os
 
-from fastapi import FastAPI
+from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from app.dependencies import verify_api_key
 from app.routers.completions import router as completions_router
 from app.routers.tasks import router as tasks_router
 
@@ -18,8 +19,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-app.include_router(tasks_router, prefix="/api")
-app.include_router(completions_router, prefix="/api")
+app.include_router(tasks_router, prefix="/api", dependencies=[Depends(verify_api_key)])
+app.include_router(completions_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 
 
 @app.get("/health")
