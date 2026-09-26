@@ -8,6 +8,7 @@ const sizes = {
   lg: { icon: 36, text: 26, sub: 11 },
 };
 
+/** Render the bunny wordmark; the small size omits the routine subtitle. */
 export function ChoreBunnyLogo({ size = "md" }: Props) {
   const s = sizes[size];
   return (

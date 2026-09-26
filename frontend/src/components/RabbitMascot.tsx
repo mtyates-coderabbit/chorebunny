@@ -6,6 +6,11 @@ interface Props {
 
 type Mood = "sleepy" | "waking" | "happy" | "excited" | "celebrating";
 
+/**
+ * Map completion percentage to sleepy at zero, waking through 25, happy
+ * through 50, excited below 100, and celebrating otherwise. Values are not
+ * clamped: negative values are waking, and NaN falls through to celebrating.
+ */
 function getMood(percent: number): Mood {
   if (percent === 0) return "sleepy";
   if (percent <= 25) return "waking";
@@ -22,6 +27,7 @@ const MOODS: Record<Mood, { label: string; bodyAnim: string; earAnim: string }> 
   celebrating: { label: "Amazing job! 🎉",     bodyAnim: "rabbitBounce 0.48s ease-in-out infinite", earAnim: "earWave 0.9s ease-in-out infinite" },
 };
 
+/** Render an animated rabbit and encouragement for completion on a 0–100 scale. */
 export function RabbitMascot({ percent }: Props) {
   const mood = getMood(percent);
   const { label, bodyAnim, earAnim } = MOODS[mood];

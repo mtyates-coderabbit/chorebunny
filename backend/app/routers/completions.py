@@ -36,4 +36,10 @@ def get_range_summary(
     end_date: date_type,
     db: Session = Depends(get_db),
 ):
+    """Return carrot totals across both routines for an inclusive date range.
+
+    Totals use currently active tasks and their current values. Missing
+    completions earn zero; reversed bounds return no days. Database errors
+    and OverflowError for an end_date of date.max propagate from the query.
+    """
     return crud.get_range_summary(db, start_date=start_date, end_date=end_date)

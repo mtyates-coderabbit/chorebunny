@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChoreBunnyLogo } from "@/components/ChoreBunnyLogo";
 import { TaskManager } from "@/components/TaskManager";
 
+/** Render task management with links to routines and metrics. */
 export default function TasksPage() {
   return (
     <div className="min-h-screen" style={{ background: "#FFF8F0" }}>

@@ -9,16 +9,25 @@ import { useRangeSummary } from "@/hooks/useRangeSummary";
 import { useTasks } from "@/hooks/useTasks";
 import type { DayCarrots } from "@/lib/types";
 
+/**
+ * Shift the current local calendar date back by n days, then return its UTC
+ * date as YYYY-MM-DD. Throws RangeError if the resulting date is invalid.
+ */
 function daysAgo(n: number): string {
   const d = new Date();
   d.setDate(d.getDate() - n);
   return d.toISOString().split("T")[0];
 }
 
+/** Return the current UTC date as YYYY-MM-DD. */
 function today(): string {
   return new Date().toISOString().split("T")[0];
 }
 
+/**
+ * Color carrot totals gray when either is zero, green at 100% or above,
+ * orange at 50% or above, and pale orange otherwise.
+ */
 function heatColor(earned: number, total: number): string {
   if (total === 0 || earned === 0) return "#E5E7EB";
   const pct = earned / total;
@@ -27,12 +36,20 @@ function heatColor(earned: number, total: number): string {
   return "#FED7AA";
 }
 
+/**
+ * Format a YYYY-MM-DD date at local midnight as an en-US short month and day.
+ * Throws RangeError if the constructed date is invalid.
+ */
 function formatShortDate(dateStr: string): string {
   return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(
     new Date(dateStr + "T00:00:00")
   );
 }
 
+/**
+ * Return the en-US short month for a YYYY-MM-DD date interpreted locally.
+ * Throws RangeError if the constructed date is invalid.
+ */
 function formatMonth(dateStr: string): string {
   return new Intl.DateTimeFormat("en-US", { month: "short" }).format(
     new Date(dateStr + "T00:00:00")
@@ -43,6 +60,10 @@ interface HeatmapProps {
   days: DayCarrots[];
 }
 
+/**
+ * Render carrot totals with hover details in seven-entry columns, preserving
+ * input order without padding missing dates or aligning the first weekday.
+ */
 function Heatmap({ days }: HeatmapProps) {
   const [tooltip, setTooltip] = useState<{ day: DayCarrots; x: number; y: number } | null>(null);
 
@@ -141,6 +162,11 @@ function Heatmap({ days }: HeatmapProps) {
   );
 }
 
+/**
+ * Load a 90-day carrot calendar and show trends for its last 30 days.
+ * Each trend divides combined earned carrots by the current routine total
+ * (zero when that total is zero); task bars currently use zero counts.
+ */
 export function MetricsView() {
   const end = today();
   const start90 = daysAgo(89);

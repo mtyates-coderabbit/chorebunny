@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChoreBunnyLogo } from "@/components/ChoreBunnyLogo";
 import { MetricsView } from "@/components/MetricsView";
 
+/** Render the metrics dashboard with links to routines and task management. */
 export default function MetricsPage() {
   return (
     <div className="min-h-screen" style={{ background: "#FFF8F0" }}>

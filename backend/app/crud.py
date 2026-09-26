@@ -98,6 +98,13 @@ def toggle_completion(
 
 
 def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.RangeSummary:
+    """Return daily carrot totals for the inclusive range, in date order.
+
+    Both routines use currently active tasks and their current carrot values,
+    including for past dates. Each day has the same available total; days with
+    no completions earn zero. A reversed range returns an empty days list.
+    Database errors propagate, as does OverflowError when end_date is date.max.
+    """
     all_tasks = get_tasks(db, active_only=True)
     total_carrots = sum(t.carrot_value for t in all_tasks)
 

@@ -19,6 +19,11 @@ function today() {
   return new Date().toISOString().split("T")[0];
 }
 
+/**
+ * Show the selected routine's tasks and carrot progress for the current UTC date.
+ * Task clicks toggle completion; a successful final-task toggle triggers a
+ * celebration at most once while this view remains mounted.
+ */
 export function RoutineView({ routine }: Props) {
   const date = today();
   const [celebrated, setCelebrated] = useState(false);
