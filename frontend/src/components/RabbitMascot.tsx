@@ -36,9 +36,9 @@ export function RabbitMascot({ percent }: Props) {
   const showCheeks = mood === "excited" || mood === "celebrating";
   const isCelebrating = mood === "celebrating";
 
-  const cheekAnim = isCelebrating
-    ? "blush 0.5s ease-in-out infinite"
-    : "blush 1s ease-in-out infinite";
+  const cheekDuration = isCelebrating ? "0.5s" : "1s";
+  const cheekAnim  = `blush ${cheekDuration} ease-in-out infinite`;
+  const cheekAnim2 = `blush ${cheekDuration} ease-in-out 0.15s infinite`;
 
   return (
     <div className="flex flex-col items-center">
@@ -99,7 +99,7 @@ export function RabbitMascot({ percent }: Props) {
           {showCheeks && (
             <>
               <ellipse cx="24" cy="57" rx="8"   ry="5"   fill="#FFB3C1" style={{ animation: cheekAnim }}/>
-              <ellipse cx="56" cy="57" rx="8"   ry="5"   fill="#FFB3C1" style={{ animation: cheekAnim, animationDelay: "0.15s" }}/>
+              <ellipse cx="56" cy="57" rx="8"   ry="5"   fill="#FFB3C1" style={{ animation: cheekAnim2 }}/>
             </>
           )}
           {isWaking && (
