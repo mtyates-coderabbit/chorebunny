@@ -7,6 +7,42 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 
 
+def get_children(db: Session) -> list[models.Child]:
+    """Return all child profiles ordered by creation time."""
+    return list(db.scalars(select(models.Child).order_by(models.Child.created_at)))
+
+
+def create_child(db: Session, data: schemas.ChildCreate) -> models.Child:
+    """Create and persist a new child profile."""
+    child = models.Child(**data.model_dump())
+    db.add(child)
+    db.commit()
+    db.refresh(child)
+    return child
+
+
+def update_child(db: Session, child_id: int, data: schemas.ChildUpdate) -> models.Child | None:
+    """Apply partial updates to an existing child profile; returns None if not found."""
+    child = db.get(models.Child, child_id)
+    if not child:
+        return None
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(child, field, value)
+    db.commit()
+    db.refresh(child)
+    return child
+
+
+def delete_child(db: Session, child_id: int) -> bool:
+    """Delete a child profile and all their completions; returns False if not found."""
+    child = db.get(models.Child, child_id)
+    if not child:
+        return False
+    db.delete(child)
+    db.commit()
+    return True
+
+
 def get_tasks(db: Session, routine: str | None = None, active_only: bool = True) -> list[models.Task]:
     q = select(models.Task)
     if routine:
@@ -46,8 +82,12 @@ def delete_task(db: Session, task_id: int) -> bool:
 
 
 def get_completions(
-    db: Session, completion_date: date, routine: str | None = None
+    db: Session,
+    completion_date: date,
+    routine: str | None = None,
+    child_id: int | None = None,
 ) -> list[models.TaskCompletion]:
+    """Return completions for a date, optionally filtered by routine and child."""
     q = (
         select(models.TaskCompletion)
         .join(models.Task)
@@ -56,16 +96,20 @@ def get_completions(
     )
     if routine:
         q = q.where(models.Task.routine == routine)
+    if child_id is not None:
+        q = q.where(models.TaskCompletion.child_id == child_id)
     return list(db.scalars(q))
 
 
 def toggle_completion(
-    db: Session, task_id: int, completion_date: date
+    db: Session, task_id: int, completion_date: date, child_id: int | None = None
 ) -> schemas.ToggleResult:
+    """Toggle a task completion on or off for a specific date and optional child."""
     existing = db.scalar(
         select(models.TaskCompletion).where(
             models.TaskCompletion.task_id == task_id,
             models.TaskCompletion.completion_date == completion_date,
+            models.TaskCompletion.child_id == child_id,
         )
     )
     if existing:
@@ -73,7 +117,7 @@ def toggle_completion(
         db.commit()
         return schemas.ToggleResult(action="deleted", completion=None)
 
-    completion = models.TaskCompletion(task_id=task_id, completion_date=completion_date)
+    completion = models.TaskCompletion(task_id=task_id, completion_date=completion_date, child_id=child_id)
     db.add(completion)
     try:
         db.commit()
@@ -84,11 +128,11 @@ def toggle_completion(
         )
     except IntegrityError:
         db.rollback()
-        # Concurrent insert — treat as already completed
         existing = db.scalar(
             select(models.TaskCompletion).where(
                 models.TaskCompletion.task_id == task_id,
                 models.TaskCompletion.completion_date == completion_date,
+                models.TaskCompletion.child_id == child_id,
             )
         )
         return schemas.ToggleResult(

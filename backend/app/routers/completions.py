@@ -14,15 +14,20 @@ MAX_RANGE_DAYS = 366
 def list_completions(
     date: date_type | None = None,
     routine: str | None = None,
+    child_id: int | None = None,
     db: Session = Depends(get_db),
 ):
+    """List completions for a date, optionally filtered by routine and child."""
     completion_date = date or date_type.today()
-    return crud.get_completions(db, completion_date=completion_date, routine=routine)
+    return crud.get_completions(db, completion_date=completion_date, routine=routine, child_id=child_id)
 
 
 @router.post("/completions/toggle", response_model=schemas.ToggleResult)
 def toggle_completion(data: schemas.CompletionToggleRequest, db: Session = Depends(get_db)):
-    return crud.toggle_completion(db, task_id=data.task_id, completion_date=data.completion_date)
+    """Toggle a task completion on or off for a specific date and optional child."""
+    return crud.toggle_completion(
+        db, task_id=data.task_id, completion_date=data.completion_date, child_id=data.child_id
+    )
 
 
 @router.get("/summary", response_model=schemas.DailySummary)
