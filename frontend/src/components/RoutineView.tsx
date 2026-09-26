@@ -107,7 +107,7 @@ export function RoutineView({ routine }: Props) {
 
       {/* Mascot + carrot counter */}
       <div className="px-5 py-2 flex flex-col items-center">
-        <RabbitMascot percent={percent} />
+        <RabbitMascot percent={percent} routine={routine} />
         <CarrotCounter earned={earnedCarrots} total={totalCarrots} />
       </div>
 
