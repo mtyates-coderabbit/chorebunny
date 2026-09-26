@@ -27,18 +27,21 @@ function offsetDate(dateStr: string, days: number): string {
  * Show the selected routine's tasks and carrot progress for the selected date.
  * Defaults to today; date can be changed via ?date=YYYY-MM-DD in the URL.
  * Task clicks toggle completion; a successful final-task toggle triggers a
- * celebration at most once while this view remains mounted.
+ * celebration at most once for the selected date until another date is celebrated.
  */
 export function RoutineView({ routine }: Props) {
   const router = useRouter();
   const params = useSearchParams();
   const today = formatLocalDate(new Date());
   const rawDate = params.get("date") ?? today;
-  const date = rawDate > today ? today : rawDate;
+  const isValidDate = /^\d{4}-\d{2}-\d{2}$/.test(rawDate)
+    && !rawDate.startsWith("0000")
+    && formatLocalDate(new Date(rawDate + "T00:00:00")) === rawDate;
+  const date = !isValidDate || rawDate > today ? today : rawDate;
   const isToday = date === today;
 
-  const [celebrated, setCelebrated] = useState(false);
-  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebratedDate, setCelebratedDate] = useState<string | null>(null);
+  const [showCelebrationDate, setShowCelebrationDate] = useState<string | null>(null);
 
   const { data: tasks = [], isLoading: tasksLoading } = useTasks(routine);
   const { data: completions = [], isLoading: completionsLoading } = useCompletions(date, routine);
@@ -61,9 +64,9 @@ export function RoutineView({ routine }: Props) {
       { taskId },
       {
         onSuccess: () => {
-          if (!wasCompleted && completedCount + 1 === totalCount && !celebrated) {
-            setCelebrated(true);
-            setShowCelebration(true);
+          if (!wasCompleted && completedCount + 1 === totalCount && celebratedDate !== date) {
+            setCelebratedDate(date);
+            setShowCelebrationDate(date);
           }
         },
       }
@@ -74,11 +77,11 @@ export function RoutineView({ routine }: Props) {
 
   return (
     <div className="min-h-screen" style={{ background: "#FFF8F0" }}>
-      {showCelebration && (
+      {showCelebrationDate === date && (
         <CelebrationOverlay
           earned={earnedCarrots}
           total={totalCarrots}
-          onDismiss={() => setShowCelebration(false)}
+          onDismiss={() => setShowCelebrationDate(null)}
         />
       )}
 
@@ -88,7 +91,7 @@ export function RoutineView({ routine }: Props) {
           <ChoreBunnyLogo size="sm" />
           <div className="flex gap-2">
             <Link
-              href={`/${other}`}
+              href={`/${other}?date=${date}`}
               className="text-sm font-semibold text-orange-400 hover:text-orange-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-orange-100"
             >
               {other === "morning" ? "☀️" : "🌙"} {other}
