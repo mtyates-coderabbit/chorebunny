@@ -7,6 +7,16 @@ import type { Task, Completion, ToggleResult } from "@/lib/types";
 
 vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
+const navigation = vi.hoisted(() => ({
+  router: { push: vi.fn() },
+  searchParams: new URLSearchParams(),
+}));
+
+vi.mock("next/navigation", () => ({
+  useRouter: () => navigation.router,
+  useSearchParams: () => navigation.searchParams,
+}));
+
 // Mock the API module
 vi.mock("@/lib/api", () => ({
   fetchTasks: vi.fn(),
@@ -38,16 +48,74 @@ describe("RoutineView", () => {
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
     expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning");
-    expect(screen.getByText(/Tuesday, March 10/)).toBeInTheDocument();
+    expect(screen.getByText(/Today/)).toBeInTheDocument();
   });
 
   beforeEach(() => {
+    vi.resetAllMocks();
+    navigation.searchParams = new URLSearchParams();
     vi.mocked(api.fetchTasks).mockResolvedValue(MORNING_TASKS);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
     vi.mocked(api.toggleCompletion).mockResolvedValue({
       action: "created",
       completion: { id: 1, task_id: 1, completion_date: "2026-09-25", completed_at: "" },
     } as ToggleResult);
+  });
+
+  it.each(["", "invalid", "2026-2-03", "2026-02-30", "2025-02-29", "2026-13-01", "2026-00-10", "2026-03-00", "0000-01-01", "2026-03-10T00:00:00", "2026-03-11"])(
+    "falls back to today for invalid or future date %j",
+    async (date) => {
+      vi.useFakeTimers({ toFake: ["Date"] });
+      vi.setSystemTime(new Date(2026, 2, 10, 12));
+      navigation.searchParams.set("date", date);
+      render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+      await screen.findByText("Brush teeth");
+      expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning");
+      expect(screen.getByText(/Today/)).toBeInTheDocument();
+      expect(screen.getByRole("button", { name: "Next day" })).toBeDisabled();
+      expect(screen.getByRole("link", { name: /evening/ })).toHaveAttribute("href", "/evening?date=2026-03-10");
+      await userEvent.click(screen.getByText("Brush teeth"));
+      expect(api.toggleCompletion).toHaveBeenCalledWith(1, "2026-03-10");
+    }
+  );
+
+  it.each(["morning", "evening"] as const)("preserves a valid leap day when switching from %s or navigating days", async (routine) => {
+    navigation.searchParams.set("date", "2024-02-29");
+    render(<RoutineView routine={routine} />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    expect(api.fetchCompletions).toHaveBeenCalledWith("2024-02-29", routine);
+    expect(screen.getByText(/Thu, Feb 29/)).toBeInTheDocument();
+    const other = routine === "morning" ? "evening" : "morning";
+    expect(screen.getByRole("link", { name: new RegExp(other) })).toHaveAttribute("href", `/${other}?date=2024-02-29`);
+    await userEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    expect(navigation.router.push).toHaveBeenLastCalledWith(`/${routine}?date=2024-02-28`);
+    await userEvent.click(screen.getByRole("button", { name: "Next day" }));
+    expect(navigation.router.push).toHaveBeenLastCalledWith(`/${routine}?date=2024-03-01`);
+  });
+
+  it("can celebrate the final task after navigating to another date", async () => {
+    navigation.searchParams.set("date", "2026-03-09");
+    vi.mocked(api.fetchCompletions).mockImplementation(async (date) => [
+      { id: 1, task_id: 1, completion_date: date, completed_at: "" },
+    ]);
+    const { rerender } = render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText(/1\/2 done/);
+    await userEvent.click(screen.getByText("Make your bed"));
+    await screen.findByText("Amazing job!");
+
+    await userEvent.click(screen.getByRole("button", { name: "Previous day" }));
+    navigation.searchParams.set("date", "2026-03-08");
+    rerender(<RoutineView routine="morning" />);
+    expect(screen.queryByText("Amazing job!")).not.toBeInTheDocument();
+    await screen.findByText(/1\/2 done/);
+    await userEvent.click(screen.getByText("Make your bed"));
+    await screen.findByText("Amazing job!");
+    expect(api.toggleCompletion).toHaveBeenLastCalledWith(2, "2026-03-08");
+
+    await userEvent.click(screen.getByRole("button", { name: /Woohoo/ }));
+    await userEvent.click(screen.getByText("Make your bed"));
+    await waitFor(() => expect(api.toggleCompletion).toHaveBeenCalledTimes(3));
+    expect(screen.queryByText("Amazing job!")).not.toBeInTheDocument();
   });
 
   it("renders the routine heading", async () => {
