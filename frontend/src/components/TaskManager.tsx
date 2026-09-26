@@ -5,6 +5,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createTask, deleteTask, fetchTasks, updateTask } from "@/lib/api";
 import type { Task } from "@/lib/types";
 
+/** Manage task creation, optional durations, visibility, and deletion by routine. */
 export function TaskManager() {
   const qc = useQueryClient();
   const { data: tasks = [], isLoading } = useQuery({

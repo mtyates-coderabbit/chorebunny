@@ -17,10 +17,12 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Add an optional estimated duration in minutes to tasks."""
     with op.batch_alter_table("tasks") as batch_op:
         batch_op.add_column(sa.Column("estimated_minutes", sa.Integer(), nullable=True))
 
 
 def downgrade() -> None:
+    """Remove the estimated duration column from tasks."""
     with op.batch_alter_table("tasks") as batch_op:
         batch_op.drop_column("estimated_minutes")

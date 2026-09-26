@@ -9,6 +9,7 @@ interface Props {
   isPending?: boolean;
 }
 
+/** Render a task's details and optional duration with a completion toggle. */
 export function TaskCard({ task, isCompleted, onToggle, isPending }: Props) {
   return (
     <button
