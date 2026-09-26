@@ -7,13 +7,17 @@ services:
       - sqlite_data:/app/data
     environment:
       DATABASE_URL: sqlite:////app/data/chorebunny.db
+      API_KEY: ${API_KEY:?Set API_KEY}
 
   frontend:
     build: ./frontend
     ports:
       - "3000:3000"
     environment:
-      NEXT_PUBLIC_API_URL: http://localhost:8000
+      API_URL: http://backend:8000
+      API_KEY: ${API_KEY:?Set API_KEY}
+      APP_USERNAME: ${APP_USERNAME:?Set APP_USERNAME}
+      APP_PASSWORD: ${APP_PASSWORD:?Set APP_PASSWORD}
     depends_on:
       - backend
 
