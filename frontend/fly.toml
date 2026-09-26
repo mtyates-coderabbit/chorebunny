@@ -1,9 +1,8 @@
 app = 'chorebunny-app'
 primary_region = 'iad'
 
-[build]
-  [build.args]
-    NEXT_PUBLIC_API_URL = 'https://chorebunny-api.fly.dev'
+[env]
+  API_URL = 'https://chorebunny-api.fly.dev'
 
 [http_service]
   internal_port = 3000

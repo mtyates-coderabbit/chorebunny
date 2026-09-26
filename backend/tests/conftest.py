@@ -35,7 +35,8 @@ def db(db_engine):
 
 
 @pytest.fixture()
-def client(db_engine, db):
+def client(db_engine, db, monkeypatch):
+    monkeypatch.setenv("API_KEY", "test-api-key")
     TestSession = sessionmaker(autocommit=False, autoflush=False, bind=db_engine)
 
     def override_get_db():
@@ -46,7 +47,7 @@ def client(db_engine, db):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
-    with TestClient(app) as c:
+    with TestClient(app, headers={"X-Api-Key": "test-api-key"}) as c:
         yield c
     app.dependency_overrides.clear()
 

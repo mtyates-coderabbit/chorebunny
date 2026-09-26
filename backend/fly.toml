@@ -1,6 +1,9 @@
 app = 'chorebunny-api'
 primary_region = 'iad'
 
+[env]
+  DATABASE_URL = 'sqlite:////data/chorebunny.db'
+
 [http_service]
   internal_port = 8000
   force_https = true

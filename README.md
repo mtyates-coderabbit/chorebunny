@@ -53,6 +53,13 @@ cd ../backend && .venv/bin/alembic upgrade head && .venv/bin/python seed.py
 
 ### Start dev servers
 
+Export these variables in the shell that starts both servers (use distinct,
+random values for the API key and password):
+
+- `API_KEY`: shared only by the backend and Next.js server; required at backend startup.
+- `APP_USERNAME` and `APP_PASSWORD`: the household login for the frontend.
+- `API_URL`: backend URL used by the Next.js server; defaults to `http://localhost:8000`.
+
 ```bash
 # From the repo root — starts both servers in parallel
 make dev
@@ -66,8 +73,18 @@ make dev-frontend  # Next.js on http://localhost:3000
 ```
 
 Open **http://localhost:3000** — it redirects to `/morning` or `/evening` based on the current time.
+Your browser first prompts for the household login using HTTP Basic authentication.
+This login grants access to all chores and management routes; there are no separate
+parent/child roles. Use HTTPS outside local development.
+
+Browser API requests use same-origin `/api` routes. Each route verifies the login
+before forwarding to the backend with the server's `API_KEY`. Direct backend API
+requests require an exact `X-Api-Key` header; `/health` stays public. The proxy
+requires a matching `Origin` header on writes to prevent cross-site submissions.
 
 ### Running with Docker
+
+Export `API_KEY`, `APP_USERNAME`, and `APP_PASSWORD` as above, then run:
 
 ```bash
 docker compose up --build
@@ -76,6 +93,19 @@ docker compose up --build
 - Frontend: http://localhost:3000
 - Backend API: http://localhost:8000
 - API docs: http://localhost:8000/docs
+
+### Fly deployment
+
+Set the same `API_KEY` as a runtime secret on `chorebunny-api` and `chorebunny-app`.
+Set `APP_USERNAME` and `APP_PASSWORD` as runtime secrets on `chorebunny-app`.
+`frontend/fly.toml` supplies the server-only `API_URL`; no credentials are build
+arguments or public frontend environment variables. Rotate any API key previously
+shipped in browser bundles when deploying this change.
+
+`backend/fly.toml` sets `DATABASE_URL=sqlite:////data/chorebunny.db` for both the app
+and Alembic, using the volume mounted at `/data`. If a previous deployment stored
+data at `/app/chorebunny.db`, back it up and copy it to the volume before switching
+the database path.
 
 ### Running tests
 
