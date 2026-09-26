@@ -109,26 +109,26 @@ export function RabbitMascot({ percent, routine = "morning" }: Props) {
           </g>
         )}
 
-        {/* Ears */}
+        {/* Ears — evening uses a deeper rose inner to distinguish from morning */}
         <g style={{ animation: earAnim, transformOrigin: "27px 37px" }}>
-          <ellipse cx="27" cy="18" rx="9" ry="21" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1.2"/>
-          <ellipse cx="27" cy="19" rx="5.5" ry="15" fill="#FFB3C1"/>
+          <ellipse cx="27" cy="18" rx="9" ry="21" fill="#F8F0E8" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.2"/>
+          <ellipse cx="27" cy="19" rx="5.5" ry="15" fill={isEvening ? "#FF9FAF" : "#FFB3C1"}/>
         </g>
         <g style={{ animation: isCelebrating ? "earWave 0.9s ease-in-out infinite 0.45s" : earAnim.replace("infinite", "infinite 0.5s"), transformOrigin: "53px 37px" }}>
-          <ellipse cx="53" cy="18" rx="9" ry="21" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1.2"/>
-          <ellipse cx="53" cy="19" rx="5.5" ry="15" fill="#FFB3C1"/>
+          <ellipse cx="53" cy="18" rx="9" ry="21" fill="#F8F0E8" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.2"/>
+          <ellipse cx="53" cy="19" rx="5.5" ry="15" fill={isEvening ? "#FF9FAF" : "#FFB3C1"}/>
         </g>
 
         {/* Body group (animated) */}
-        <g style={{ animation: bodyAnim, transformOrigin: mood === "happy" ? "40px 52px" : "40px 84px" }}>
-          <ellipse cx="40" cy="84" rx="22" ry="19" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1.2"/>
+        <g style={{ animation: bodyAnim, transformOrigin: (mood === "happy" || mood === "focused") ? "40px 52px" : "40px 84px" }}>
+          <ellipse cx="40" cy="84" rx="22" ry="19" fill="#F8F0E8" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.2"/>
           <ellipse cx="40" cy="86" rx="13"  ry="12" fill="#FFF8F0"/>
-          <ellipse cx="59" cy="84" rx="6.5" ry="6"  fill="#fff"    stroke="#E8C9A0" strokeWidth="0.8"/>
-          <ellipse cx="25" cy="98" rx="9.5" ry="5.5" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1"/>
-          <ellipse cx="55" cy="98" rx="9.5" ry="5.5" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1"/>
+          <ellipse cx="59" cy="84" rx="6.5" ry="6"  fill="#fff"    stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="0.8"/>
+          <ellipse cx="25" cy="98" rx="9.5" ry="5.5" fill="#F8F0E8" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1"/>
+          <ellipse cx="55" cy="98" rx="9.5" ry="5.5" fill="#F8F0E8" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1"/>
 
-          {/* Head */}
-          <circle cx="40" cy="52" r="23" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1.2"/>
+          {/* Head — evening has a soft lavender outline */}
+          <circle cx="40" cy="52" r="23" fill="#F8F0E8" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.2"/>
 
           {/* Cheeks */}
           {showCheeks && (
@@ -160,34 +160,30 @@ export function RabbitMascot({ percent, routine = "morning" }: Props) {
               <circle cx="48" cy="49.5" r="0.8" fill="#fff"/>
               <path d="M42.5,47 Q47,44 51.5,47" stroke="#E8C9A0" strokeWidth="2" fill="#F8F0E8" strokeLinecap="round"/>
             </>
-          ) : isCalm ? (
-            <>
-              {/* soft half-lidded eyes for calm evening state */}
-              <circle cx="33" cy="50" r="4.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="47" cy="50" r="4.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="33" cy="51" r="1.8" fill="#3D2B1F"/>
-              <circle cx="47" cy="51" r="1.8" fill="#3D2B1F"/>
-              <circle cx="34.2" cy="49" r="0.7" fill="#fff"/>
-              <circle cx="48.2" cy="49" r="0.7" fill="#fff"/>
-              {/* drooped eyelids */}
-              <path d="M28.5,48 Q33,45.5 37.5,48" stroke="#E8C9A0" strokeWidth="1.8" fill="#F8F0E8" strokeLinecap="round"/>
-              <path d="M42.5,48 Q47,45.5 51.5,48" stroke="#E8C9A0" strokeWidth="1.8" fill="#F8F0E8" strokeLinecap="round"/>
-            </>
           ) : isCelebrating ? (
             <>
-              <circle cx="33" cy="49" r="5.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="47" cy="49" r="5.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <text x="33" y="52.5" fontSize="8" fill="#F97316" textAnchor="middle">★</text>
-              <text x="47" y="52.5" fontSize="8" fill="#F97316" textAnchor="middle">★</text>
+              <circle cx="33" cy="49" r="5.5" fill="#fff" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.5"/>
+              <circle cx="47" cy="49" r="5.5" fill="#fff" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.5"/>
+              {isEvening ? (
+                <>
+                  <text x="33" y="52.5" fontSize="8" textAnchor="middle">🌙</text>
+                  <text x="47" y="52.5" fontSize="8" textAnchor="middle">⭐</text>
+                </>
+              ) : (
+                <>
+                  <text x="33" y="52.5" fontSize="8" fill="#F97316" textAnchor="middle">★</text>
+                  <text x="47" y="52.5" fontSize="8" fill="#F97316" textAnchor="middle">★</text>
+                </>
+              )}
             </>
           ) : (
             <>
-              <circle cx="33" cy="49" r={mood === "excited" ? 5.5 : 4.5} fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="47" cy="49" r={mood === "excited" ? 5.5 : 4.5} fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="33" cy="49.5" r={mood === "excited" ? 2.4 : 2} fill="#3D2B1F"/>
-              <circle cx="47" cy="49.5" r={mood === "excited" ? 2.4 : 2} fill="#3D2B1F"/>
-              <circle cx="34.4" cy="47.8" r={mood === "excited" ? 1.1 : 0.9} fill="#fff"/>
-              <circle cx="48.4" cy="47.8" r={mood === "excited" ? 1.1 : 0.9} fill="#fff"/>
+              <circle cx="33" cy="49" r={mood === "excited" || mood === "nearly_done" ? 5.5 : 4.5} fill="#fff" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.5"/>
+              <circle cx="47" cy="49" r={mood === "excited" || mood === "nearly_done" ? 5.5 : 4.5} fill="#fff" stroke={isEvening ? "#C9B8D8" : "#E8C9A0"} strokeWidth="1.5"/>
+              <circle cx="33" cy="49.5" r={mood === "excited" || mood === "nearly_done" ? 2.4 : 2} fill="#3D2B1F"/>
+              <circle cx="47" cy="49.5" r={mood === "excited" || mood === "nearly_done" ? 2.4 : 2} fill="#3D2B1F"/>
+              <circle cx="34.4" cy="47.8" r={mood === "excited" || mood === "nearly_done" ? 1.1 : 0.9} fill="#fff"/>
+              <circle cx="48.4" cy="47.8" r={mood === "excited" || mood === "nearly_done" ? 1.1 : 0.9} fill="#fff"/>
             </>
           )}
 

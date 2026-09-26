@@ -46,12 +46,30 @@ make seed         # populate default chores
 
 ## Code style
 
-- No unnecessary comments — well-named code is self-documenting
+- No unnecessary inline comments — well-named code is self-documenting
 - No premature abstractions — three similar lines beats a helper no one asked for
 - No error handling for scenarios that can't happen
 - Validate only at system boundaries (user input, external APIs)
 - TypeScript: strict mode, no `any`
 - Python: type hints on all function signatures
+
+## Docstrings
+
+Add a docstring to every exported function, React component, and Python function/class. Keep it to **one line** — describe the contract or non-obvious behaviour, not what the name already says. Never describe the implementation.
+
+**TypeScript/TSX:** JSDoc single-line above the export.
+```ts
+/** Returns a YYYY-MM-DD string for the given Date in local time. */
+export function formatLocalDate(d: Date): string { ... }
+```
+
+**Python:** one-line docstring on all `def` and `class` bodies.
+```python
+def get_tasks(db: Session, routine: str) -> list[Task]:
+    """Return all active tasks for the given routine, ordered by sort_order."""
+```
+
+Omit docstrings on: trivial one-liners whose name is self-evident (`isLoading`, `handleClick`), private helpers that are only called once, test functions.
 
 ## Design system
 
