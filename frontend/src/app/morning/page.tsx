@@ -1,5 +1,10 @@
+import { Suspense } from "react";
 import { RoutineView } from "@/components/RoutineView";
 
 export default function MorningPage() {
-  return <RoutineView routine="morning" />;
+  return (
+    <Suspense>
+      <RoutineView routine="morning" />
+    </Suspense>
+  );
 }

@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { formatLocalDate } from "@/lib/dates";
 import Link from "next/link";
 import { useCompletions } from "@/hooks/useCompletions";
@@ -16,13 +17,26 @@ interface Props {
   routine: "morning" | "evening";
 }
 
+function offsetDate(dateStr: string, days: number): string {
+  const d = new Date(dateStr + "T00:00:00");
+  d.setDate(d.getDate() + days);
+  return formatLocalDate(d);
+}
+
 /**
- * Show the selected routine's tasks and carrot progress for the current local date.
+ * Show the selected routine's tasks and carrot progress for the selected date.
+ * Defaults to today; date can be changed via ?date=YYYY-MM-DD in the URL.
  * Task clicks toggle completion; a successful final-task toggle triggers a
  * celebration at most once while this view remains mounted.
  */
 export function RoutineView({ routine }: Props) {
-  const date = formatLocalDate(new Date());
+  const router = useRouter();
+  const params = useSearchParams();
+  const today = formatLocalDate(new Date());
+  const rawDate = params.get("date") ?? today;
+  const date = rawDate > today ? today : rawDate;
+  const isToday = date === today;
+
   const [celebrated, setCelebrated] = useState(false);
   const [showCelebration, setShowCelebration] = useState(false);
 
@@ -98,11 +112,30 @@ export function RoutineView({ routine }: Props) {
         <h1 className="text-2xl font-extrabold text-gray-800 capitalize">
           {routine === "morning" ? "☀️" : "🌙"} {routine} routine
         </h1>
-        <p className="text-sm font-medium mt-0.5" style={{ color: "#C4956A" }}>
-          {new Intl.DateTimeFormat("en-US", { weekday: "long", month: "long", day: "numeric" }).format(new Date(date + "T00:00:00"))}
-          {" · "}
-          {completedCount}/{totalCount} done
-        </p>
+        <div className="flex items-center gap-2 mt-0.5">
+          <button
+            onClick={() => router.push(`/${routine}?date=${offsetDate(date, -1)}`)}
+            className="text-orange-300 hover:text-orange-500 text-lg leading-none px-1"
+            aria-label="Previous day"
+          >
+            ‹
+          </button>
+          <p className="text-sm font-medium" style={{ color: "#C4956A" }}>
+            {isToday
+              ? "Today"
+              : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date + "T00:00:00"))}
+            {" · "}
+            {completedCount}/{totalCount} done
+          </p>
+          <button
+            onClick={() => router.push(`/${routine}?date=${offsetDate(date, 1)}`)}
+            disabled={isToday}
+            className="text-orange-300 hover:text-orange-500 text-lg leading-none px-1 disabled:opacity-20 disabled:cursor-not-allowed"
+            aria-label="Next day"
+          >
+            ›
+          </button>
+        </div>
       </header>
 
       {/* Mascot + carrot counter */}
