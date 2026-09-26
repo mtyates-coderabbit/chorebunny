@@ -2,6 +2,8 @@
 
 A rabbit-themed chore tracker for kids. Helps children complete their morning and evening routines by earning carrot rewards for each task.
 
+**Live app: [chorebunny-app.fly.dev](https://chorebunny-app.fly.dev)**
+
 ![ChoreBunny screenshot](docs/screenshot.png)
 
 ## Features
@@ -11,7 +13,9 @@ A rabbit-themed chore tracker for kids. Helps children complete their morning an
 - **Carrot rewards** — each task is worth 1–5 carrots; harder tasks earn more
 - **Rabbit mascot** — mood changes as you make progress
 - **Celebration confetti** — fires when every task in a routine is done
+- **Backfill missed days** — navigate back with the date picker to log previous days
 - **Task manager** — parents can add, hide, or delete chores at `/tasks`
+- **Metrics** — 90-day heatmap and trend charts at `/metrics`
 
 ## Architecture
 
@@ -96,24 +100,36 @@ docker compose up --build
 
 ### Fly deployment
 
+Two apps on Fly.io:
+- **Backend** → `chorebunny-api` (always-on, SQLite volume)
+- **Frontend** → `chorebunny-app` (scale-to-zero)
+
 Set the same `API_KEY` as a runtime secret on `chorebunny-api` and `chorebunny-app`.
 Set `APP_USERNAME` and `APP_PASSWORD` as runtime secrets on `chorebunny-app`.
 `frontend/fly.toml` supplies the server-only `API_URL`; no credentials are build
-arguments or public frontend environment variables. Rotate any API key previously
-shipped in browser bundles when deploying this change.
+arguments or public frontend environment variables.
 
-`backend/fly.toml` sets `DATABASE_URL=sqlite:////data/chorebunny.db` for both the app
-and Alembic, using the volume mounted at `/data`. If a previous deployment stored
-data at `/app/chorebunny.db`, back it up and copy it to the volume before switching
-the database path.
+`backend/fly.toml` sets `DATABASE_URL=sqlite:////data/chorebunny.db` using the volume
+mounted at `/data`. **All carrot history persists across redeploys** — the Fly volume
+is not part of the Docker image and survives every `fly deploy`.
+
+### CI/CD
+
+Pushes to `main` auto-deploy via GitHub Actions ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml)):
+backend deploys first, then frontend. Two secrets must be set in the GitHub repo:
+
+```
+FLY_API_TOKEN_BACKEND   # fly tokens create deploy -a chorebunny-api
+FLY_API_TOKEN_FRONTEND  # fly tokens create deploy -a chorebunny-app
+```
 
 ### Running tests
 
 ```bash
-# Backend (30 tests)
+# Backend (58 tests)
 cd backend && .venv/bin/pytest -v
 
-# Frontend (24 tests)
+# Frontend
 cd frontend && npm test
 ```
 
@@ -129,6 +145,10 @@ cd backend && .venv/bin/alembic upgrade head && .venv/bin/python seed.py
 ## Roadmap
 
 - [ ] Parent admin area (separate from the child-facing UI)
-- [ ] Streak tracking and historical metrics
 - [ ] Multi-child support
 - [ ] Carrot savings bank (accumulate across days)
+- [ ] Evening mascot mood (distinct from morning flow)
+
+## License
+
+MIT — free to use for personal and non-commercial purposes. See [LICENSE](LICENSE).
