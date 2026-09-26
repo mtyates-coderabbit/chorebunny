@@ -68,11 +68,4 @@ make seed         # populate default chores
 - All dates over the wire as `YYYY-MM-DD` strings
 - Endpoints live under `/api/` prefix
 - FastAPI returns 422 automatically for missing/invalid params — don't add manual checks for things Pydantic already validates
-- CORS is configured for `http://localhost:3000` in `backend/app/main.py` — add new origins there when deploying
-
-## Deployment notes (future)
-
-- Frontend → Vercel; set `NEXT_PUBLIC_API_URL` env var in Vercel dashboard
-- Backend → Railway / Fly.io / Render (FastAPI needs a persistent process, not serverless)
-- SQLite → Postgres when deploying; just swap `DATABASE_URL` — SQLAlchemy + Alembic handle the rest
-- Add the production frontend domain to `allow_origins` in `main.py`
+- CORS is configured for `http://localhost:3000` in `backend/app/main.py`
