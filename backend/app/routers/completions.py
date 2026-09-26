@@ -28,3 +28,18 @@ def toggle_completion(data: schemas.CompletionToggleRequest, db: Session = Depen
 def get_summary(date: date_type | None = None, db: Session = Depends(get_db)):
     summary_date = date or date_type.today()
     return crud.get_daily_summary(db, summary_date=summary_date)
+
+
+@router.get("/summary/range", response_model=schemas.RangeSummary)
+def get_range_summary(
+    start_date: date_type,
+    end_date: date_type,
+    db: Session = Depends(get_db),
+):
+    """Return carrot totals across both routines for an inclusive date range.
+
+    Totals use currently active tasks and their current values. Missing
+    completions earn zero; reversed bounds return no days. Database errors
+    and OverflowError for an end_date of date.max propagate from the query.
+    """
+    return crud.get_range_summary(db, start_date=start_date, end_date=end_date)

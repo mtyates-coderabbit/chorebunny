@@ -1,12 +1,12 @@
 import Link from "next/link";
 import { ChoreBunnyLogo } from "@/components/ChoreBunnyLogo";
-import { TaskManager } from "@/components/TaskManager";
+import { MetricsView } from "@/components/MetricsView";
 
-/** Render task management with links to routines and metrics. */
-export default function TasksPage() {
+/** Render the metrics dashboard with links to routines and task management. */
+export default function MetricsPage() {
   return (
     <div className="min-h-screen" style={{ background: "#FFF8F0" }}>
-      <div className="px-5 pt-5 pb-2 flex items-center justify-between">
+      <div className="px-5 pt-5 pb-3 flex items-center justify-between">
         <ChoreBunnyLogo size="sm" />
         <div className="flex gap-2">
           <Link
@@ -16,14 +16,14 @@ export default function TasksPage() {
             ← Routines
           </Link>
           <Link
-            href="/metrics"
+            href="/tasks"
             className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
           >
-            📊 Metrics
+            ⚙️ Tasks
           </Link>
         </div>
       </div>
-      <TaskManager />
+      <MetricsView />
     </div>
   );
 }

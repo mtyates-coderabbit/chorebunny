@@ -52,3 +52,23 @@ export interface TaskUpdate {
   is_active?: boolean;
   sort_order?: number;
 }
+
+export interface DayCarrots {
+  date: string;
+  earned_carrots: number;
+  total_carrots: number;
+}
+
+export interface TaskStat {
+  task_id: number;
+  name: string;
+  routine: string;
+  count: number;
+}
+
+export interface RangeSummary {
+  start_date: string;
+  end_date: string;
+  days: DayCarrots[];
+  task_stats: TaskStat[];
+}

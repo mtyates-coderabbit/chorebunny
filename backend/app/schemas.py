@@ -66,3 +66,23 @@ class DailySummary(BaseModel):
     evening: RoutineSummary
     total_carrots: int
     earned_carrots: int
+
+
+class DayCarrots(BaseModel):
+    date: date
+    earned_carrots: int
+    total_carrots: int
+
+
+class TaskStat(BaseModel):
+    task_id: int
+    name: str
+    routine: str
+    count: int
+
+
+class RangeSummary(BaseModel):
+    start_date: date
+    end_date: date
+    days: list[DayCarrots]
+    task_stats: list[TaskStat]
