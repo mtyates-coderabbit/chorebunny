@@ -9,6 +9,7 @@ interface Props {
   isPending?: boolean;
 }
 
+/** Render a task's details and optional duration with a completion toggle. */
 export function TaskCard({ task, isCompleted, onToggle, isPending }: Props) {
   return (
     <button
@@ -52,6 +53,9 @@ export function TaskCard({ task, isCompleted, onToggle, isPending }: Props) {
         </p>
         {task.description && (
           <p className="text-sm text-gray-500 mt-0.5 truncate">{task.description}</p>
+        )}
+        {task.estimated_minutes && (
+          <p className="text-xs text-gray-400 mt-0.5">~{task.estimated_minutes} min</p>
         )}
       </div>
 

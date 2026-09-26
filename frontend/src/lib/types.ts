@@ -4,6 +4,7 @@ export interface Task {
   description: string | null;
   routine: "morning" | "evening";
   carrot_value: number;
+  estimated_minutes: number | null;
   is_active: boolean;
   sort_order: number;
   created_at: string;
@@ -41,6 +42,7 @@ export interface TaskCreate {
   description?: string;
   routine: "morning" | "evening";
   carrot_value: number;
+  estimated_minutes?: number;
   sort_order?: number;
 }
 
@@ -49,6 +51,7 @@ export interface TaskUpdate {
   description?: string;
   routine?: "morning" | "evening";
   carrot_value?: number;
+  estimated_minutes?: number | null;
   is_active?: boolean;
   sort_order?: number;
 }

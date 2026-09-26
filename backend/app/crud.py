@@ -29,7 +29,7 @@ def update_task(db: Session, task_id: int, data: schemas.TaskUpdate) -> models.T
     task = db.get(models.Task, task_id)
     if not task:
         return None
-    for field, value in data.model_dump(exclude_none=True).items():
+    for field, value in data.model_dump(exclude_unset=True).items():
         setattr(task, field, value)
     db.commit()
     db.refresh(task)

@@ -10,6 +10,7 @@ const task: Task = {
   description: "Two minutes!",
   routine: "morning",
   carrot_value: 1,
+  estimated_minutes: null,
   is_active: true,
   sort_order: 0,
   created_at: "2026-09-25T00:00:00",

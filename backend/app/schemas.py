@@ -9,6 +9,7 @@ class TaskCreate(BaseModel):
     description: str | None = None
     routine: Literal["morning", "evening"]
     carrot_value: int = Field(default=1, ge=1, le=5)
+    estimated_minutes: int | None = Field(default=None, ge=1, le=180)
     sort_order: int = 0
 
 
@@ -17,6 +18,7 @@ class TaskUpdate(BaseModel):
     description: str | None = None
     routine: Literal["morning", "evening"] | None = None
     carrot_value: int | None = Field(default=None, ge=1, le=5)
+    estimated_minutes: int | None = Field(default=None, ge=1, le=180)
     is_active: bool | None = None
     sort_order: int | None = None
 
@@ -27,6 +29,7 @@ class Task(BaseModel):
     description: str | None
     routine: str
     carrot_value: int
+    estimated_minutes: int | None
     is_active: bool
     sort_order: int
     created_at: datetime
