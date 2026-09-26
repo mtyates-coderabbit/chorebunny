@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -54,4 +54,13 @@ class TaskCompletion(Base):
     task: Mapped["Task"] = relationship("Task", back_populates="completions")
     child: Mapped["Child | None"] = relationship("Child", back_populates="completions")
 
-    __table_args__ = (UniqueConstraint("task_id", "completion_date", "child_id"),)
+    __table_args__ = (
+        UniqueConstraint("task_id", "completion_date", "child_id"),
+        Index(
+            "uq_task_completions_without_child",
+            "task_id",
+            "completion_date",
+            unique=True,
+            sqlite_where=child_id.is_(None),
+        ),
+    )

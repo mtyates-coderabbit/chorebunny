@@ -49,6 +49,13 @@ def upgrade() -> None:
     """)
     op.execute("DROP TABLE task_completions")
     op.execute("ALTER TABLE task_completions_new RENAME TO task_completions")
+    op.create_index(
+        "uq_task_completions_without_child",
+        "task_completions",
+        ["task_id", "completion_date"],
+        unique=True,
+        sqlite_where=sa.text("child_id IS NULL"),
+    )
 
 
 def downgrade() -> None:
