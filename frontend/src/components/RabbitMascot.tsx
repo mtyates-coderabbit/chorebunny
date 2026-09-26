@@ -111,7 +111,7 @@ export function RabbitMascot({ percent, routine = "morning" }: Props) {
         </g>
 
         {/* Body group (animated) */}
-        <g style={{ animation: bodyAnim, transformOrigin: mood === "happy" ? "40px 52px" : "40px 84px" }}>
+        <g style={{ animation: bodyAnim, transformOrigin: (mood === "happy" || mood === "focused") ? "40px 52px" : "40px 84px" }}>
           <ellipse cx="40" cy="84" rx="22" ry="19" fill="#F8F0E8" stroke="#E8C9A0" strokeWidth="1.2"/>
           <ellipse cx="40" cy="86" rx="13"  ry="12" fill="#FFF8F0"/>
           <ellipse cx="59" cy="84" rx="6.5" ry="6"  fill="#fff"    stroke="#E8C9A0" strokeWidth="0.8"/>
@@ -150,19 +150,6 @@ export function RabbitMascot({ percent, routine = "morning" }: Props) {
               <circle cx="47" cy="51"  r="2"   fill="#3D2B1F"/>
               <circle cx="48" cy="49.5" r="0.8" fill="#fff"/>
               <path d="M42.5,47 Q47,44 51.5,47" stroke="#E8C9A0" strokeWidth="2" fill="#F8F0E8" strokeLinecap="round"/>
-            </>
-          ) : isCalm ? (
-            <>
-              {/* soft half-lidded eyes for calm evening state */}
-              <circle cx="33" cy="50" r="4.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="47" cy="50" r="4.5" fill="#fff" stroke="#E8C9A0" strokeWidth="1.5"/>
-              <circle cx="33" cy="51" r="1.8" fill="#3D2B1F"/>
-              <circle cx="47" cy="51" r="1.8" fill="#3D2B1F"/>
-              <circle cx="34.2" cy="49" r="0.7" fill="#fff"/>
-              <circle cx="48.2" cy="49" r="0.7" fill="#fff"/>
-              {/* drooped eyelids */}
-              <path d="M28.5,48 Q33,45.5 37.5,48" stroke="#E8C9A0" strokeWidth="1.8" fill="#F8F0E8" strokeLinecap="round"/>
-              <path d="M42.5,48 Q47,45.5 51.5,48" stroke="#E8C9A0" strokeWidth="1.8" fill="#F8F0E8" strokeLinecap="round"/>
             </>
           ) : isCelebrating ? (
             <>
