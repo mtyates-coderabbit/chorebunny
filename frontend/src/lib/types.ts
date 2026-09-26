@@ -59,8 +59,16 @@ export interface DayCarrots {
   total_carrots: number;
 }
 
+export interface TaskStat {
+  task_id: number;
+  name: string;
+  routine: string;
+  count: number;
+}
+
 export interface RangeSummary {
   start_date: string;
   end_date: string;
   days: DayCarrots[];
+  task_stats: TaskStat[];
 }

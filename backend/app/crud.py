@@ -119,12 +119,14 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
     )
 
     earned_by_date: dict[date, int] = {}
+    count_by_task: dict[int, int] = {}
     for c in completions:
         task = next((t for t in all_tasks if t.id == c.task_id), None)
         if task:
             earned_by_date[c.completion_date] = (
                 earned_by_date.get(c.completion_date, 0) + task.carrot_value
             )
+            count_by_task[c.task_id] = count_by_task.get(c.task_id, 0) + 1
 
     days: list[schemas.DayCarrots] = []
     current = start_date
@@ -136,7 +138,22 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
         ))
         current += timedelta(days=1)
 
-    return schemas.RangeSummary(start_date=start_date, end_date=end_date, days=days)
+    task_stats = [
+        schemas.TaskStat(
+            task_id=t.id,
+            name=t.name,
+            routine=t.routine,
+            count=count_by_task.get(t.id, 0),
+        )
+        for t in all_tasks
+    ]
+
+    return schemas.RangeSummary(
+        start_date=start_date,
+        end_date=end_date,
+        days=days,
+        task_stats=task_stats,
+    )
 
 
 def get_daily_summary(db: Session, summary_date: date) -> schemas.DailySummary:

@@ -74,7 +74,15 @@ class DayCarrots(BaseModel):
     total_carrots: int
 
 
+class TaskStat(BaseModel):
+    task_id: int
+    name: str
+    routine: str
+    count: int
+
+
 class RangeSummary(BaseModel):
     start_date: date
     end_date: date
     days: list[DayCarrots]
+    task_stats: list[TaskStat]

@@ -187,13 +187,10 @@ export function MetricsView() {
     }));
   }, [range90, morningTasks, eveningTasks]);
 
-  const allTasks = [...morningTasks, ...eveningTasks];
   const taskCompletionCounts = useMemo(() => {
     if (!range90) return [];
-    const countByTask: Record<number, { name: string; routine: string; count: number }> = {};
-    allTasks.forEach((t) => { countByTask[t.id] = { name: t.name, routine: t.routine, count: 0 }; });
-    return Object.values(countByTask).sort((a, b) => b.count - a.count).slice(0, 8);
-  }, [range90, allTasks]);
+    return [...range90.task_stats].sort((a, b) => b.count - a.count).slice(0, 8);
+  }, [range90]);
 
   if (loading90) {
     return <div className="px-5 py-10 text-center text-gray-400 font-semibold">Loading metrics...</div>;
