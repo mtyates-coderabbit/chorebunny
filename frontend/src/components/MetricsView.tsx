@@ -114,8 +114,15 @@ function Heatmap({ days }: HeatmapProps) {
               {week.map((day) => (
                 <div
                   key={day.date}
+                  role="img"
+                  aria-label={`${day.date}: ${day.earned_carrots} of ${day.total_carrots} carrots earned`}
+                  tabIndex={0}
                   onMouseEnter={(e) => setTooltip({ day, x: e.clientX, y: e.clientY })}
                   onMouseLeave={() => setTooltip(null)}
+                  onFocus={(e) => setTooltip({ day, x: e.currentTarget.getBoundingClientRect().right, y: e.currentTarget.getBoundingClientRect().top })}
+                  onBlur={() => setTooltip(null)}
+                  onTouchStart={(e) => { e.preventDefault(); const r = e.currentTarget.getBoundingClientRect(); setTooltip({ day, x: r.right, y: r.top }); }}
+                  onTouchEnd={() => setTooltip(null)}
                   style={{
                     width: 12,
                     height: 12,
@@ -123,6 +130,7 @@ function Heatmap({ days }: HeatmapProps) {
                     background: heatColor(day.earned_carrots, day.total_carrots),
                     cursor: "default",
                     flexShrink: 0,
+                    outline: "none",
                   }}
                 />
               ))}
