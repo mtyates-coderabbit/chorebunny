@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { ChildManager } from "@/components/ChildManager";
 import { ChoreBunnyLogo } from "@/components/ChoreBunnyLogo";
 import { TaskManager } from "@/components/TaskManager";
 
@@ -23,6 +24,7 @@ export default function TasksPage() {
           </Link>
         </div>
       </div>
+      <ChildManager />
       <TaskManager />
     </div>
   );
