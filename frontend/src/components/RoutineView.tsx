@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatLocalDate } from "@/lib/dates";
 import Link from "next/link";
+import { useChildren } from "@/hooks/useChildren";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useTasks } from "@/hooks/useTasks";
 import { useToggleCompletion } from "@/hooks/useToggleCompletion";
@@ -42,10 +43,16 @@ export function RoutineView({ routine }: Props) {
 
   const [celebratedDate, setCelebratedDate] = useState<string | null>(null);
   const [showCelebrationDate, setShowCelebrationDate] = useState<string | null>(null);
+  const [activeChildId, setActiveChildId] = useState<number | null>(null);
 
+  const { data: children = [] } = useChildren();
   const { data: tasks = [], isLoading: tasksLoading } = useTasks(routine);
-  const { data: completions = [], isLoading: completionsLoading } = useCompletions(date, routine);
-  const toggle = useToggleCompletion(date);
+  const { data: completions = [], isLoading: completionsLoading } = useCompletions(
+    date,
+    routine,
+    activeChildId ?? undefined
+  );
+  const toggle = useToggleCompletion(date, activeChildId ?? undefined);
 
   const completedIds = new Set(completions.map((c) => c.task_id));
   const completedCount = tasks.filter((t) => completedIds.has(t.id)).length;
@@ -140,6 +147,37 @@ export function RoutineView({ routine }: Props) {
           </button>
         </div>
       </header>
+
+      {/* Child switcher */}
+      {children.length > 0 && (
+        <div className="px-5 pb-1 flex gap-2 flex-wrap">
+          <button
+            onClick={() => setActiveChildId(null)}
+            className={`px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
+              activeChildId === null
+                ? "bg-orange-400 text-white border-orange-400"
+                : "bg-white text-gray-500 border-gray-200 hover:border-orange-300"
+            }`}
+          >
+            Everyone
+          </button>
+          {children.map((child) => (
+            <button
+              key={child.id}
+              onClick={() => setActiveChildId(child.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
+                activeChildId === child.id
+                  ? "text-white border-transparent"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-orange-300"
+              }`}
+              style={activeChildId === child.id ? { background: child.color, borderColor: child.color } : undefined}
+            >
+              <span>{child.avatar}</span>
+              {child.name}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* Mascot + carrot counter */}
       <div className="px-5 py-2 flex flex-col items-center">
