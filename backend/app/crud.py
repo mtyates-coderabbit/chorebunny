@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from sqlalchemy import select
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session
 
 from app import models, schemas
@@ -42,6 +42,27 @@ def delete_task(db: Session, task_id: int) -> bool:
         return False
     db.delete(task)
     db.commit()
+    return True
+
+
+def reorder_task(db: Session, task_id: int, data: schemas.TaskReorder) -> bool:
+    """Move a task among all routine siblings and persist their positions atomically."""
+    task = db.get(models.Task, task_id)
+    if not task:
+        return False
+    siblings = get_tasks(db, routine=task.routine, active_only=False)
+    index = siblings.index(task)
+    target = index + data.direction
+    if not 0 <= target < len(siblings):
+        return True
+    siblings[index], siblings[target] = siblings[target], siblings[index]
+    try:
+        for position, sibling in enumerate(siblings):
+            sibling.sort_order = position
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
     return True
 
 

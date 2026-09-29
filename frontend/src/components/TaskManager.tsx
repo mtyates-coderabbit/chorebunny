@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTask, deleteTask, fetchTasks, updateTask } from "@/lib/api";
+import { createTask, deleteTask, fetchTasks, reorderTask, updateTask } from "@/lib/api";
 import type { Task } from "@/lib/types";
 
 interface EditState {
@@ -50,6 +50,12 @@ export function TaskManager() {
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
+  const reorderMutation = useMutation({
+    mutationFn: ({ id, direction }: { id: number; direction: -1 | 1 }) =>
+      reorderTask(id, direction),
+    onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
     if (!form.name.trim()) return;
@@ -62,13 +68,14 @@ export function TaskManager() {
 
   const handleSaveEdit = (e: React.FormEvent) => {
     e.preventDefault();
+    updateMutation.reset();
     if (!editing || !editing.name.trim()) return;
     updateMutation.mutate(
       {
         id: editing.id,
         data: {
           name: editing.name,
-          description: editing.description || undefined,
+          description: editing.description || null,
           routine: editing.routine,
           carrot_value: editing.carrot_value,
           estimated_minutes: editing.estimated_minutes ? Number(editing.estimated_minutes) : null,
@@ -78,7 +85,13 @@ export function TaskManager() {
     );
   };
 
-  const startEdit = (task: Task) =>
+  const changeEdit = (fields: Partial<EditState>) => {
+    if (updateMutation.error) updateMutation.reset();
+    setEditing((current) => current && { ...current, ...fields });
+  };
+
+  const startEdit = (task: Task) => {
+    updateMutation.reset();
     setEditing({
       id: task.id,
       name: task.name,
@@ -87,6 +100,7 @@ export function TaskManager() {
       carrot_value: task.carrot_value,
       estimated_minutes: task.estimated_minutes?.toString() ?? "",
     });
+  };
 
   const moveTask = (task: Task, direction: -1 | 1) => {
     const siblings = tasks
@@ -95,8 +109,7 @@ export function TaskManager() {
     const idx = siblings.findIndex((t) => t.id === task.id);
     const neighbor = siblings[idx + direction];
     if (!neighbor) return;
-    updateMutation.mutate({ id: task.id, data: { sort_order: neighbor.sort_order } });
-    updateMutation.mutate({ id: neighbor.id, data: { sort_order: task.sort_order } });
+    reorderMutation.mutate({ id: task.id, direction });
   };
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
@@ -119,20 +132,20 @@ export function TaskManager() {
           <input
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
             value={editing.name}
-            onChange={(e) => setEditing({ ...editing, name: e.target.value })}
+            onChange={(e) => changeEdit({ name: e.target.value })}
             required
           />
           <input
             className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
             placeholder="Description (optional)"
             value={editing.description}
-            onChange={(e) => setEditing({ ...editing, description: e.target.value })}
+            onChange={(e) => changeEdit({ description: e.target.value })}
           />
           <div className="flex gap-3 flex-wrap">
             <select
               className="border border-gray-200 rounded-xl px-3 py-2 text-sm"
               value={editing.routine}
-              onChange={(e) => setEditing({ ...editing, routine: e.target.value as "morning" | "evening" })}
+              onChange={(e) => changeEdit({ routine: e.target.value as "morning" | "evening" })}
             >
               <option value="morning">☀️ Morning</option>
               <option value="evening">🌙 Evening</option>
@@ -142,7 +155,7 @@ export function TaskManager() {
               <select
                 className="border border-gray-200 rounded-xl px-2 py-2 text-sm"
                 value={editing.carrot_value}
-                onChange={(e) => setEditing({ ...editing, carrot_value: Number(e.target.value) })}
+                onChange={(e) => changeEdit({ carrot_value: Number(e.target.value) })}
               >
                 {[1, 2, 3, 4, 5].map((n) => (
                   <option key={n} value={n}>{"🥕".repeat(n)}</option>
@@ -158,10 +171,13 @@ export function TaskManager() {
                 className="border border-gray-200 rounded-xl px-2 py-2 text-sm w-16"
                 placeholder="—"
                 value={editing.estimated_minutes}
-                onChange={(e) => setEditing({ ...editing, estimated_minutes: e.target.value })}
+                onChange={(e) => changeEdit({ estimated_minutes: e.target.value })}
               />
             </div>
           </div>
+          {updateMutation.error && (
+            <p role="alert" className="text-sm text-red-500">{updateMutation.error.message}</p>
+          )}
           <div className="flex gap-2">
             <button
               type="submit"
@@ -193,7 +209,7 @@ export function TaskManager() {
         <div className="flex flex-col gap-0.5">
           <button
             onClick={() => moveTask(task, -1)}
-            disabled={idx === 0 || updateMutation.isPending}
+            disabled={idx === 0 || updateMutation.isPending || reorderMutation.isPending}
             className="text-gray-300 hover:text-gray-500 text-xs leading-none disabled:opacity-20 disabled:cursor-not-allowed"
             aria-label="Move up"
           >
@@ -201,7 +217,7 @@ export function TaskManager() {
           </button>
           <button
             onClick={() => moveTask(task, 1)}
-            disabled={idx === siblings.length - 1 || updateMutation.isPending}
+            disabled={idx === siblings.length - 1 || updateMutation.isPending || reorderMutation.isPending}
             className="text-gray-300 hover:text-gray-500 text-xs leading-none disabled:opacity-20 disabled:cursor-not-allowed"
             aria-label="Move down"
           >

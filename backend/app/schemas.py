@@ -23,6 +23,12 @@ class TaskUpdate(BaseModel):
     sort_order: int | None = None
 
 
+class TaskReorder(BaseModel):
+    """Move a task one position within its routine."""
+
+    direction: Literal[-1, 1]
+
+
 class Task(BaseModel):
     id: int
     name: str

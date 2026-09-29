@@ -27,6 +27,11 @@ export function updateTask(id: number, data: TaskUpdate): Promise<Task> {
   return req(`/api/tasks/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
+/** Move a task one position within its routine atomically. */
+export function reorderTask(id: number, direction: -1 | 1): Promise<void> {
+  return req(`/api/tasks/${id}/reorder`, { method: "POST", body: JSON.stringify({ direction }) });
+}
+
 export function deleteTask(id: number): Promise<void> {
   return req(`/api/tasks/${id}`, { method: "DELETE" });
 }

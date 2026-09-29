@@ -86,6 +86,16 @@ describe("authorized API proxy", () => {
     expect(await response.json()).toEqual({ detail: "invalid" });
   });
 
+  it("forwards an authorized reorder request", async () => {
+    upstream.mockResolvedValue(new Response(null, { status: 204 }));
+    const response = await POST(request("/api/tasks/1/reorder", {
+      method: "POST", body: '{"direction":-1}', headers: { origin: "https://chores.example" },
+    }));
+    expect(response.status).toBe(204);
+    expect(String(upstream.mock.calls[0][0])).toBe("https://backend.example/api/tasks/1/reorder");
+    expect(upstream.mock.calls[0][1]).toMatchObject({ method: "POST", body: '{"direction":-1}' });
+  });
+
   it("returns a generic upstream failure", async () => {
     upstream.mockRejectedValue(new Error("sensitive details"));
     const response = await GET(request());
@@ -93,7 +103,7 @@ describe("authorized API proxy", () => {
     expect(await response.text()).toBe("API unavailable");
   });
 
-  it.each(["/api/unknown", "/api/tasks%2f..%2fadmin", "/api/tasks/1/extra"])("rejects paths outside the API allowlist: %s", async (path) => {
+  it.each(["/api/unknown", "/api/tasks%2f..%2fadmin", "/api/tasks/1/extra", "/api/tasks/reorder", "/api/tasks/1/reorder/extra"])("rejects paths outside the API allowlist: %s", async (path) => {
     expect((await GET(request(path))).status).toBe(404);
     expect(upstream).not.toHaveBeenCalled();
   });
