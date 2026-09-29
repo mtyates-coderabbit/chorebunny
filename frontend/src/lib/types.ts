@@ -69,7 +69,7 @@ export interface TaskCreate {
 
 export interface TaskUpdate {
   name?: string;
-  description?: string;
+  description?: string | null;
   routine?: "morning" | "evening";
   carrot_value?: number;
   estimated_minutes?: number | null;

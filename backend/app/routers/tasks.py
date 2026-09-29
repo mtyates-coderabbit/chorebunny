@@ -33,3 +33,10 @@ def update_task(task_id: int, data: schemas.TaskUpdate, db: Session = Depends(ge
 def delete_task(task_id: int, db: Session = Depends(get_db)):
     if not crud.delete_task(db, task_id):
         raise HTTPException(status_code=404, detail="Task not found")
+
+
+@router.post("/{task_id}/reorder", status_code=204)
+def reorder_task(task_id: int, data: schemas.TaskReorder, db: Session = Depends(get_db)) -> None:
+    """Move a task one position within its routine in a single transaction."""
+    if not crud.reorder_task(db, task_id, data):
+        raise HTTPException(status_code=404, detail="Task not found")
