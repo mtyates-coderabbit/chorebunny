@@ -22,6 +22,7 @@ vi.mock("@/lib/api", () => ({
   fetchTasks: vi.fn(),
   fetchCompletions: vi.fn(),
   toggleCompletion: vi.fn(),
+  fetchChildren: vi.fn().mockResolvedValue([]),
 }));
 
 import * as api from "@/lib/api";
@@ -47,7 +48,7 @@ describe("RoutineView", () => {
     vi.mocked(api.fetchCompletions).mockClear();
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
-    expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning");
+    expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning", undefined);
     expect(screen.getByText(/Today/)).toBeInTheDocument();
   });
 
@@ -70,12 +71,12 @@ describe("RoutineView", () => {
       navigation.searchParams.set("date", date);
       render(<RoutineView routine="morning" />, { wrapper: wrapper() });
       await screen.findByText("Brush teeth");
-      expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning");
+      expect(api.fetchCompletions).toHaveBeenCalledWith("2026-03-10", "morning", undefined);
       expect(screen.getByText(/Today/)).toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Next day" })).toBeDisabled();
       expect(screen.getByRole("link", { name: /evening/ })).toHaveAttribute("href", "/evening?date=2026-03-10");
       await userEvent.click(screen.getByText("Brush teeth"));
-      expect(api.toggleCompletion).toHaveBeenCalledWith(1, "2026-03-10");
+      expect(api.toggleCompletion).toHaveBeenCalledWith(1, "2026-03-10", undefined);
     }
   );
 
@@ -83,7 +84,7 @@ describe("RoutineView", () => {
     navigation.searchParams.set("date", "2024-02-29");
     render(<RoutineView routine={routine} />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
-    expect(api.fetchCompletions).toHaveBeenCalledWith("2024-02-29", routine);
+    expect(api.fetchCompletions).toHaveBeenCalledWith("2024-02-29", routine, undefined);
     expect(screen.getByText(/Thu, Feb 29/)).toBeInTheDocument();
     const other = routine === "morning" ? "evening" : "morning";
     expect(screen.getByRole("link", { name: new RegExp(other) })).toHaveAttribute("href", `/${other}?date=2024-02-29`);
@@ -110,7 +111,7 @@ describe("RoutineView", () => {
     await screen.findByText(/1\/2 done/);
     await userEvent.click(screen.getByText("Make your bed"));
     await screen.findByText("Amazing job!");
-    expect(api.toggleCompletion).toHaveBeenLastCalledWith(2, "2026-03-08");
+    expect(api.toggleCompletion).toHaveBeenLastCalledWith(2, "2026-03-08", undefined);
 
     await userEvent.click(screen.getByRole("button", { name: /Woohoo/ }));
     await userEvent.click(screen.getByText("Make your bed"));
@@ -138,7 +139,7 @@ describe("RoutineView", () => {
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
     await userEvent.click(screen.getByText("Brush teeth").closest("button")!);
-    expect(api.toggleCompletion).toHaveBeenCalledWith(1, expect.any(String));
+    expect(api.toggleCompletion).toHaveBeenCalledWith(1, expect.any(String), undefined);
   });
 
   it("shows celebration overlay when all tasks are completed sequentially", async () => {

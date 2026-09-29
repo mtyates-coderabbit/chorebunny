@@ -1,4 +1,5 @@
 from datetime import date as date_type
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -14,21 +15,35 @@ MAX_RANGE_DAYS = 366
 def list_completions(
     date: date_type | None = None,
     routine: str | None = None,
+    child_id: int | None = None,
     db: Session = Depends(get_db),
 ):
+    """List completions of active tasks for the date (default: today on the server), optionally filtered by nonempty routine; omitted child_id selects only completions with no child."""
     completion_date = date or date_type.today()
-    return crud.get_completions(db, completion_date=completion_date, routine=routine)
+    return crud.get_completions(db, completion_date=completion_date, routine=routine, child_id=child_id)
 
 
 @router.post("/completions/toggle", response_model=schemas.ToggleResult)
 def toggle_completion(data: schemas.CompletionToggleRequest, db: Session = Depends(get_db)):
-    return crud.toggle_completion(db, task_id=data.task_id, completion_date=data.completion_date)
+    """Persist a task/date toggle and return its action and completion (None on deletion); omitted child_id selects no child; raise HTTPException(404) for a missing child and propagate unhandled database errors."""
+    result = crud.toggle_completion(
+        db, task_id=data.task_id, completion_date=data.completion_date, child_id=data.child_id
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Child not found")
+    return result
 
 
 @router.get("/summary", response_model=schemas.DailySummary)
 def get_summary(date: date_type | None = None, db: Session = Depends(get_db)):
     summary_date = date or date_type.today()
     return crud.get_daily_summary(db, summary_date=summary_date)
+
+
+@router.get("/streaks", response_model=schemas.StreakSummary)
+def get_streaks(routine: Literal["morning", "evening"] | None = None, db: Session = Depends(get_db)):
+    """Return current and longest completion streaks, optionally scoped to a routine."""
+    return crud.get_streaks(db, routine=routine)
 
 
 @router.get("/summary/range", response_model=schemas.RangeSummary)

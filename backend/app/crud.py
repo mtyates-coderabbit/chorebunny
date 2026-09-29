@@ -7,6 +7,42 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 
 
+def get_children(db: Session) -> list[models.Child]:
+    """Return all child profiles ordered by creation time."""
+    return list(db.scalars(select(models.Child).order_by(models.Child.created_at)))
+
+
+def create_child(db: Session, data: schemas.ChildCreate) -> models.Child:
+    """Create and persist a new child profile."""
+    child = models.Child(**data.model_dump())
+    db.add(child)
+    db.commit()
+    db.refresh(child)
+    return child
+
+
+def update_child(db: Session, child_id: int, data: schemas.ChildUpdate) -> models.Child | None:
+    """Apply partial updates to an existing child profile; returns None if not found."""
+    child = db.get(models.Child, child_id)
+    if not child:
+        return None
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(child, field, value)
+    db.commit()
+    db.refresh(child)
+    return child
+
+
+def delete_child(db: Session, child_id: int) -> bool:
+    """Delete a child profile and all their completions; returns False if not found."""
+    child = db.get(models.Child, child_id)
+    if not child:
+        return False
+    db.delete(child)
+    db.commit()
+    return True
+
+
 def get_tasks(db: Session, routine: str | None = None, active_only: bool = True) -> list[models.Task]:
     q = select(models.Task)
     if routine:
@@ -67,8 +103,12 @@ def reorder_task(db: Session, task_id: int, data: schemas.TaskReorder) -> bool:
 
 
 def get_completions(
-    db: Session, completion_date: date, routine: str | None = None
+    db: Session,
+    completion_date: date,
+    routine: str | None = None,
+    child_id: int | None = None,
 ) -> list[models.TaskCompletion]:
+    """Return completions of active tasks for the date, optionally filtered by nonempty routine; child_id=None selects only completions with no child."""
     q = (
         select(models.TaskCompletion)
         .join(models.Task)
@@ -77,16 +117,25 @@ def get_completions(
     )
     if routine:
         q = q.where(models.Task.routine == routine)
+    if child_id is not None:
+        q = q.where(models.TaskCompletion.child_id == child_id)
+    else:
+        q = q.where(models.TaskCompletion.child_id.is_(None))
     return list(db.scalars(q))
 
 
 def toggle_completion(
-    db: Session, task_id: int, completion_date: date
-) -> schemas.ToggleResult:
+    db: Session, task_id: int, completion_date: date, child_id: int | None = None
+) -> schemas.ToggleResult | None:
+    """Persist a toggle for the task/date and child (None selects no child); return deleted with no completion or created with the new or concurrently inserted completion, or None for a missing child; propagate IntegrityError when insertion fails with no matching completion and no missing child, and other database errors."""
+    if child_id is not None and db.get(models.Child, child_id) is None:
+        return None
+
     existing = db.scalar(
         select(models.TaskCompletion).where(
             models.TaskCompletion.task_id == task_id,
             models.TaskCompletion.completion_date == completion_date,
+            models.TaskCompletion.child_id == child_id,
         )
     )
     if existing:
@@ -94,7 +143,7 @@ def toggle_completion(
         db.commit()
         return schemas.ToggleResult(action="deleted", completion=None)
 
-    completion = models.TaskCompletion(task_id=task_id, completion_date=completion_date)
+    completion = models.TaskCompletion(task_id=task_id, completion_date=completion_date, child_id=child_id)
     db.add(completion)
     try:
         db.commit()
@@ -105,16 +154,20 @@ def toggle_completion(
         )
     except IntegrityError:
         db.rollback()
-        # Concurrent insert — treat as already completed
+        if child_id is not None and db.get(models.Child, child_id) is None:
+            return None
         existing = db.scalar(
             select(models.TaskCompletion).where(
                 models.TaskCompletion.task_id == task_id,
                 models.TaskCompletion.completion_date == completion_date,
+                models.TaskCompletion.child_id == child_id,
             )
         )
+        if existing is None:
+            raise
         return schemas.ToggleResult(
             action="created",
-            completion=schemas.Completion.model_validate(existing) if existing else None,
+            completion=schemas.Completion.model_validate(existing),
         )
 
 
@@ -181,6 +234,57 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
         end_date=end_date,
         days=days,
         task_stats=task_stats,
+    )
+
+
+def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummary:
+    """Return current and longest consecutive-day completion streaks.
+
+    A day counts if at least one active task was completed that day.
+    Optionally scoped to a single routine; omitting routine spans both.
+    The current streak counts backward from today; a gap yesterday breaks it.
+    """
+    today = date.today()
+    q = (
+        select(models.TaskCompletion.completion_date)
+        .join(models.Task)
+        .where(models.Task.is_active == True)  # noqa: E712
+        .where(models.TaskCompletion.completion_date <= today)
+    )
+    if routine:
+        q = q.where(models.Task.routine == routine)
+    q = q.distinct().order_by(models.TaskCompletion.completion_date.desc())
+    dates: list[date] = list(db.scalars(q))
+
+    if not dates:
+        return schemas.StreakSummary(current_streak=0, longest_streak=0, last_completion_date=None)
+
+    # Current streak: walk backward from today
+    current = 0
+    cursor = today
+    for d in dates:
+        if d == cursor:
+            current += 1
+            cursor -= timedelta(days=1)
+        elif d < cursor:
+            break
+
+    # Longest streak: scan all dates (already sorted desc → reverse for asc walk)
+    longest = 0
+    run = 1
+    asc = list(reversed(dates))
+    for i in range(1, len(asc)):
+        if asc[i] == asc[i - 1] + timedelta(days=1):
+            run += 1
+        else:
+            longest = max(longest, run)
+            run = 1
+    longest = max(longest, run)
+
+    return schemas.StreakSummary(
+        current_streak=current,
+        longest_streak=longest,
+        last_completion_date=dates[0],
     )
 
 

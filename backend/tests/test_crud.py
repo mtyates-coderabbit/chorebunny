@@ -1,11 +1,11 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
 from app import crud, schemas
-from app.models import Task
+from app.models import Child, Task
 
 
 TODAY = date.today()
@@ -168,3 +168,130 @@ class TestRangeSummary:
         assert {stat.task_id: stat.count for stat in summary.task_stats} == {
             morning_task.id: 1, evening_task.id: 1,
         }
+
+
+class TestStreaks:
+    def test_no_completions_returns_zeros(self, db, morning_task):
+        result = crud.get_streaks(db)
+        assert result.current_streak == 0
+        assert result.longest_streak == 0
+        assert result.last_completion_date is None
+
+    def test_single_completion_today_is_streak_of_one(self, db, morning_task):
+        crud.toggle_completion(db, morning_task.id, TODAY)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 1
+        assert result.longest_streak == 1
+        assert result.last_completion_date == TODAY
+
+    def test_gap_yesterday_breaks_current_streak(self, db, morning_task):
+        two_days_ago = TODAY - timedelta(days=2)
+        crud.toggle_completion(db, morning_task.id, two_days_ago)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 0
+        assert result.longest_streak == 1
+
+    def test_consecutive_days_build_streak(self, db, morning_task):
+        for offset in range(3):
+            crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=offset))
+        result = crud.get_streaks(db)
+        assert result.current_streak == 3
+        assert result.longest_streak == 3
+
+    def test_longest_streak_survives_gap(self, db, morning_task):
+        for offset in range(4):
+            crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=offset + 10))
+        crud.toggle_completion(db, morning_task.id, TODAY)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 1
+        assert result.longest_streak == 4
+
+    def test_routine_filter_isolates_streaks(self, db, morning_task, evening_task):
+        crud.toggle_completion(db, morning_task.id, TODAY)
+        crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=1))
+        crud.toggle_completion(db, evening_task.id, TODAY)
+
+        morning = crud.get_streaks(db, routine="morning")
+        evening = crud.get_streaks(db, routine="evening")
+        assert morning.current_streak == 2
+        assert evening.current_streak == 1
+
+    def test_inactive_tasks_excluded(self, db):
+        hidden = Task(name="Hidden", routine="morning", carrot_value=1, is_active=False)
+        db.add(hidden)
+        db.commit()
+        crud.toggle_completion(db, hidden.id, TODAY)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 0
+
+
+class TestChildCRUD:
+    def test_create_and_list_child(self, db):
+        crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        children = crud.get_children(db)
+        assert len(children) == 1
+        assert children[0].name == "Alice"
+        assert children[0].avatar == "🐰"
+
+    def test_create_child_custom_avatar(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Bob", avatar="🐻", color="#7DD3FC"))
+        assert child.avatar == "🐻"
+        assert child.color == "#7DD3FC"
+
+    def test_update_child_name(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        updated = crud.update_child(db, child.id, schemas.ChildUpdate(name="Alicia"))
+        assert updated is not None
+        assert updated.name == "Alicia"
+        assert updated.avatar == "🐰"
+
+    def test_update_nonexistent_child_returns_none(self, db):
+        result = crud.update_child(db, 9999, schemas.ChildUpdate(name="Ghost"))
+        assert result is None
+
+    def test_delete_child(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        assert crud.delete_child(db, child.id) is True
+        assert crud.get_children(db) == []
+
+    def test_delete_nonexistent_child_returns_false(self, db):
+        assert crud.delete_child(db, 9999) is False
+
+    def test_two_children_can_complete_same_task_same_day(self, db, morning_task):
+        alice = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        bob = crud.create_child(db, schemas.ChildCreate(name="Bob"))
+
+        r1 = crud.toggle_completion(db, morning_task.id, TODAY, child_id=alice.id)
+        r2 = crud.toggle_completion(db, morning_task.id, TODAY, child_id=bob.id)
+
+        assert r1.action == "created"
+        assert r2.action == "created"
+
+    def test_toggle_per_child_is_independent(self, db, morning_task):
+        alice = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=alice.id)
+        r = crud.toggle_completion(db, morning_task.id, TODAY, child_id=alice.id)
+        assert r.action == "deleted"
+
+        unscoped = crud.toggle_completion(db, morning_task.id, TODAY)
+        assert unscoped.action == "created"
+
+    def test_get_completions_filtered_by_child(self, db, morning_task):
+        alice = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        bob = crud.create_child(db, schemas.ChildCreate(name="Bob"))
+
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=alice.id)
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=bob.id)
+
+        alice_completions = crud.get_completions(db, completion_date=TODAY, child_id=alice.id)
+        assert len(alice_completions) == 1
+        assert alice_completions[0].child_id == alice.id
+
+    def test_delete_child_cascades_completions(self, db, morning_task):
+        alice = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=alice.id)
+        crud.delete_child(db, alice.id)
+
+        completions = crud.get_completions(db, completion_date=TODAY, child_id=alice.id)
+        assert completions == []

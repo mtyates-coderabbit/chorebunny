@@ -4,6 +4,34 @@ from typing import Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 
+class ChildCreate(BaseModel):
+    """Payload for creating a new child profile."""
+
+    name: str
+    avatar: str = "🐰"
+    color: str = "#F97316"
+
+
+class ChildUpdate(BaseModel):
+    """Partial update payload for a child profile."""
+
+    name: str = None
+    avatar: str = None
+    color: str = None
+
+
+class Child(BaseModel):
+    """Child profile returned from the API."""
+
+    id: int
+    name: str
+    avatar: str
+    color: str
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class TaskCreate(BaseModel):
     name: str
     description: str | None = None
@@ -44,13 +72,19 @@ class Task(BaseModel):
 
 
 class CompletionToggleRequest(BaseModel):
+    """Payload for toggling a task completion on or off."""
+
     task_id: int
+    child_id: int | None = None
     completion_date: date = Field(default_factory=date.today)
 
 
 class Completion(BaseModel):
+    """A task completion record returned from the API."""
+
     id: int
     task_id: int
+    child_id: int | None
     completion_date: date
     completed_at: datetime
 
@@ -97,3 +131,11 @@ class RangeSummary(BaseModel):
     end_date: date
     days: list[DayCarrots]
     task_stats: list[TaskStat]
+
+
+class StreakSummary(BaseModel):
+    """Consecutive-day completion streaks for one routine (or all routines)."""
+
+    current_streak: int
+    longest_streak: int
+    last_completion_date: date | None
