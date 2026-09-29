@@ -15,9 +15,9 @@ class ChildCreate(BaseModel):
 class ChildUpdate(BaseModel):
     """Partial update payload for a child profile."""
 
-    name: str | None = None
-    avatar: str | None = None
-    color: str | None = None
+    name: str = None
+    avatar: str = None
+    color: str = None
 
 
 class Child(BaseModel):

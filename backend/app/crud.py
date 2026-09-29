@@ -87,7 +87,7 @@ def get_completions(
     routine: str | None = None,
     child_id: int | None = None,
 ) -> list[models.TaskCompletion]:
-    """Return completions for a date, optionally filtered by routine and child."""
+    """Return completions for a date and child scope, optionally filtered by routine."""
     q = (
         select(models.TaskCompletion)
         .join(models.Task)
@@ -98,13 +98,18 @@ def get_completions(
         q = q.where(models.Task.routine == routine)
     if child_id is not None:
         q = q.where(models.TaskCompletion.child_id == child_id)
+    else:
+        q = q.where(models.TaskCompletion.child_id.is_(None))
     return list(db.scalars(q))
 
 
 def toggle_completion(
     db: Session, task_id: int, completion_date: date, child_id: int | None = None
-) -> schemas.ToggleResult:
-    """Toggle a task completion on or off for a specific date and optional child."""
+) -> schemas.ToggleResult | None:
+    """Toggle a completion in the given child scope; return None for a missing child."""
+    if child_id is not None and db.get(models.Child, child_id) is None:
+        return None
+
     existing = db.scalar(
         select(models.TaskCompletion).where(
             models.TaskCompletion.task_id == task_id,
@@ -128,6 +133,8 @@ def toggle_completion(
         )
     except IntegrityError:
         db.rollback()
+        if child_id is not None and db.get(models.Child, child_id) is None:
+            return None
         existing = db.scalar(
             select(models.TaskCompletion).where(
                 models.TaskCompletion.task_id == task_id,
@@ -135,9 +142,11 @@ def toggle_completion(
                 models.TaskCompletion.child_id == child_id,
             )
         )
+        if existing is None:
+            raise
         return schemas.ToggleResult(
             action="created",
-            completion=schemas.Completion.model_validate(existing) if existing else None,
+            completion=schemas.Completion.model_validate(existing),
         )
 
 
