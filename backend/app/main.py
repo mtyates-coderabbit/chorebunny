@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.dependencies import validate_api_key, verify_api_key
+from app.routers.children import router as children_router
 from app.routers.completions import router as completions_router
 from app.routers.tasks import router as tasks_router
 
@@ -32,6 +33,7 @@ app.add_middleware(
 
 app.include_router(tasks_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(completions_router, prefix="/api", dependencies=[Depends(verify_api_key)])
+app.include_router(children_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 
 
 @app.get("/health")

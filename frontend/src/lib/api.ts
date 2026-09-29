@@ -1,4 +1,4 @@
-import type { Completion, DailySummary, RangeSummary, Task, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, Task, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -31,16 +31,33 @@ export function deleteTask(id: number): Promise<void> {
   return req(`/api/tasks/${id}`, { method: "DELETE" });
 }
 
-export function fetchCompletions(date: string, routine?: string): Promise<Completion[]> {
+export function fetchChildren(): Promise<Child[]> {
+  return req("/api/children");
+}
+
+export function createChild(data: ChildCreate): Promise<Child> {
+  return req("/api/children", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateChild(id: number, data: ChildUpdate): Promise<Child> {
+  return req(`/api/children/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteChild(id: number): Promise<void> {
+  return req(`/api/children/${id}`, { method: "DELETE" });
+}
+
+export function fetchCompletions(date: string, routine?: string, childId?: number): Promise<Completion[]> {
   const params = new URLSearchParams({ date });
   if (routine) params.set("routine", routine);
+  if (childId !== undefined) params.set("child_id", String(childId));
   return req(`/api/completions?${params}`);
 }
 
-export function toggleCompletion(task_id: number, completion_date: string): Promise<ToggleResult> {
+export function toggleCompletion(task_id: number, completion_date: string, child_id?: number): Promise<ToggleResult> {
   return req("/api/completions/toggle", {
     method: "POST",
-    body: JSON.stringify({ task_id, completion_date }),
+    body: JSON.stringify({ task_id, completion_date, child_id: child_id ?? null }),
   });
 }
 
