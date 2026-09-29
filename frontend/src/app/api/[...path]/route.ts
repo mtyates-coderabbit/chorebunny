@@ -8,7 +8,7 @@ async function forward(request: Request): Promise<Response> {
   if (denied) return denied;
 
   const url = new URL(request.url);
-  if (!/^\/api\/(tasks(?:\/\d+)?|completions(?:\/toggle)?|summary(?:\/range)?|children(?:\/\d+)?)$/.test(url.pathname)) {
+  if (!/^\/api\/(tasks(?:\/\d+)?|completions(?:\/toggle)?|summary(?:\/range)?|streaks|children(?:\/\d+)?)$/.test(url.pathname)) {
     return new Response("Not found", { status: 404 });
   }
 

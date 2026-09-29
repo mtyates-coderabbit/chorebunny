@@ -216,6 +216,57 @@ def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.
     )
 
 
+def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummary:
+    """Return current and longest consecutive-day completion streaks.
+
+    A day counts if at least one active task was completed that day.
+    Optionally scoped to a single routine; omitting routine spans both.
+    The current streak counts backward from today; a gap yesterday breaks it.
+    """
+    today = date.today()
+    q = (
+        select(models.TaskCompletion.completion_date)
+        .join(models.Task)
+        .where(models.Task.is_active == True)  # noqa: E712
+        .where(models.TaskCompletion.completion_date <= today)
+    )
+    if routine:
+        q = q.where(models.Task.routine == routine)
+    q = q.distinct().order_by(models.TaskCompletion.completion_date.desc())
+    dates: list[date] = list(db.scalars(q))
+
+    if not dates:
+        return schemas.StreakSummary(current_streak=0, longest_streak=0, last_completion_date=None)
+
+    # Current streak: walk backward from today
+    current = 0
+    cursor = today
+    for d in dates:
+        if d == cursor:
+            current += 1
+            cursor -= timedelta(days=1)
+        elif d < cursor:
+            break
+
+    # Longest streak: scan all dates (already sorted desc → reverse for asc walk)
+    longest = 0
+    run = 1
+    asc = list(reversed(dates))
+    for i in range(1, len(asc)):
+        if asc[i] == asc[i - 1] + timedelta(days=1):
+            run += 1
+        else:
+            longest = max(longest, run)
+            run = 1
+    longest = max(longest, run)
+
+    return schemas.StreakSummary(
+        current_streak=current,
+        longest_streak=longest,
+        last_completion_date=dates[0],
+    )
+
+
 def get_daily_summary(db: Session, summary_date: date) -> schemas.DailySummary:
     def routine_summary(routine: str) -> schemas.RoutineSummary:
         tasks = get_tasks(db, routine=routine, active_only=True)

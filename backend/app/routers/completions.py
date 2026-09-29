@@ -1,4 +1,5 @@
 from datetime import date as date_type
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
@@ -37,6 +38,12 @@ def toggle_completion(data: schemas.CompletionToggleRequest, db: Session = Depen
 def get_summary(date: date_type | None = None, db: Session = Depends(get_db)):
     summary_date = date or date_type.today()
     return crud.get_daily_summary(db, summary_date=summary_date)
+
+
+@router.get("/streaks", response_model=schemas.StreakSummary)
+def get_streaks(routine: Literal["morning", "evening"] | None = None, db: Session = Depends(get_db)):
+    """Return current and longest completion streaks, optionally scoped to a routine."""
+    return crud.get_streaks(db, routine=routine)
 
 
 @router.get("/summary/range", response_model=schemas.RangeSummary)

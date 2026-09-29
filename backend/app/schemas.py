@@ -125,3 +125,11 @@ class RangeSummary(BaseModel):
     end_date: date
     days: list[DayCarrots]
     task_stats: list[TaskStat]
+
+
+class StreakSummary(BaseModel):
+    """Consecutive-day completion streaks for one routine (or all routines)."""
+
+    current_streak: int
+    longest_streak: int
+    last_completion_date: date | None
