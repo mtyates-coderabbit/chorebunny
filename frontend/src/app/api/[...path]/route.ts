@@ -2,6 +2,7 @@ import { requireLogin } from "@/lib/server-auth";
 
 export const runtime = "nodejs";
 
+/** Forward allowlisted API requests with server credentials after login and origin checks; preserve upstream status/body, return 401/403/404/503 for rejected requests, and convert forwarding failures to 502. */
 async function forward(request: Request): Promise<Response> {
   const denied = requireLogin(request);
   if (denied) return denied;

@@ -31,22 +31,27 @@ export function deleteTask(id: number): Promise<void> {
   return req(`/api/tasks/${id}`, { method: "DELETE" });
 }
 
+/** Return all child profiles in creation order. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function fetchChildren(): Promise<Child[]> {
   return req("/api/children");
 }
 
+/** Persist and return a child profile; omitted avatar and color use API defaults. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function createChild(data: ChildCreate): Promise<Child> {
   return req("/api/children", { method: "POST", body: JSON.stringify(data) });
 }
 
+/** Persist supplied profile fields and return the child, preserving omitted fields; a missing child rejects with HTTP 404. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function updateChild(id: number, data: ChildUpdate): Promise<Child> {
   return req(`/api/children/${id}`, { method: "PUT", body: JSON.stringify(data) });
 }
 
+/** Delete a child and their completions, resolving to undefined on HTTP 204; a missing child rejects with HTTP 404. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function deleteChild(id: number): Promise<void> {
   return req(`/api/children/${id}`, { method: "DELETE" });
 }
 
+/** Return completions of active tasks for a YYYY-MM-DD date, optionally filtered by nonempty routine; omitted childId selects only completions with no child. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function fetchCompletions(date: string, routine?: string, childId?: number): Promise<Completion[]> {
   const params = new URLSearchParams({ date });
   if (routine) params.set("routine", routine);
@@ -54,6 +59,7 @@ export function fetchCompletions(date: string, routine?: string, childId?: numbe
   return req(`/api/completions?${params}`);
 }
 
+/** Toggle a task for a YYYY-MM-DD date and optional child (omitted means no child); return created with a new or concurrently inserted completion, or deleted with null; a missing child rejects with HTTP 404. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function toggleCompletion(task_id: number, completion_date: string, child_id?: number): Promise<ToggleResult> {
   return req("/api/completions/toggle", {
     method: "POST",

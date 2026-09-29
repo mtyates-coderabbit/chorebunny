@@ -23,7 +23,7 @@ def create_child(data: schemas.ChildCreate, db: Session = Depends(get_db)) -> sc
 
 @router.put("/{child_id}", response_model=schemas.Child)
 def update_child(child_id: int, data: schemas.ChildUpdate, db: Session = Depends(get_db)) -> schemas.Child:
-    """Update name, avatar, or color for a child profile."""
+    """Persist supplied name, avatar, or color fields and return the child, preserving omitted fields; raise HTTPException(404) if missing."""
     child = crud.update_child(db, child_id, data)
     if not child:
         raise HTTPException(status_code=404, detail="Child not found")
@@ -32,6 +32,6 @@ def update_child(child_id: int, data: schemas.ChildUpdate, db: Session = Depends
 
 @router.delete("/{child_id}", status_code=204)
 def delete_child(child_id: int, db: Session = Depends(get_db)) -> None:
-    """Delete a child profile and cascade-delete all their completions."""
+    """Delete a child profile and cascade-delete all their completions; raise HTTPException(404) if the child is missing."""
     if not crud.delete_child(db, child_id):
         raise HTTPException(status_code=404, detail="Child not found")
