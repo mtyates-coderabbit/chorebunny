@@ -59,7 +59,7 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
-    """Remove child_id from task_completions and drop children table."""
+    """Remove child_id and the children table, discarding child-associated completions and preserving only those with no child."""
     op.execute("""
         CREATE TABLE task_completions_old (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,

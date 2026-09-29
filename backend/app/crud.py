@@ -87,7 +87,7 @@ def get_completions(
     routine: str | None = None,
     child_id: int | None = None,
 ) -> list[models.TaskCompletion]:
-    """Return completions for a date and child scope, optionally filtered by routine."""
+    """Return completions of active tasks for the date, optionally filtered by nonempty routine; child_id=None selects only completions with no child."""
     q = (
         select(models.TaskCompletion)
         .join(models.Task)
@@ -106,7 +106,7 @@ def get_completions(
 def toggle_completion(
     db: Session, task_id: int, completion_date: date, child_id: int | None = None
 ) -> schemas.ToggleResult | None:
-    """Toggle a completion in the given child scope; return None for a missing child."""
+    """Persist a toggle for the task/date and child (None selects no child); return deleted with no completion or created with the new or concurrently inserted completion, or None for a missing child; propagate IntegrityError when insertion fails with no matching completion and no missing child, and other database errors."""
     if child_id is not None and db.get(models.Child, child_id) is None:
         return None
 
