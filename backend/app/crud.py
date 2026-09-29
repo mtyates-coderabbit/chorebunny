@@ -170,10 +170,12 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
     Optionally scoped to a single routine; omitting routine spans both.
     The current streak counts backward from today; a gap yesterday breaks it.
     """
+    today = date.today()
     q = (
         select(models.TaskCompletion.completion_date)
         .join(models.Task)
         .where(models.Task.is_active == True)  # noqa: E712
+        .where(models.TaskCompletion.completion_date <= today)
     )
     if routine:
         q = q.where(models.Task.routine == routine)
@@ -182,8 +184,6 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
 
     if not dates:
         return schemas.StreakSummary(current_streak=0, longest_streak=0, last_completion_date=None)
-
-    today = date.today()
 
     # Current streak: walk backward from today
     current = 0
