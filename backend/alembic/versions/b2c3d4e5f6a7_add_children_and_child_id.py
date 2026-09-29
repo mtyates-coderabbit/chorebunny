@@ -53,6 +53,14 @@ def upgrade() -> None:
 
 def downgrade() -> None:
     """Remove child_id from task_completions and drop children table."""
+    conn = op.get_bind()
+    row = conn.execute(sa.text("SELECT COUNT(*) FROM task_completions WHERE child_id IS NOT NULL")).scalar()
+    if row:
+        raise RuntimeError(
+            f"Cannot downgrade: {row} task_completion row(s) are scoped to a child. "
+            "Delete or reassign them before reverting this migration."
+        )
+
     op.execute("""
         CREATE TABLE task_completions_old (
             id              INTEGER PRIMARY KEY AUTOINCREMENT,
