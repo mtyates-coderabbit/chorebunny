@@ -10,9 +10,30 @@ export interface Task {
   created_at: string;
 }
 
+export interface Child {
+  id: number;
+  name: string;
+  avatar: string;
+  color: string;
+  created_at: string;
+}
+
+export interface ChildCreate {
+  name: string;
+  avatar?: string;
+  color?: string;
+}
+
+export interface ChildUpdate {
+  name?: string;
+  avatar?: string;
+  color?: string;
+}
+
 export interface Completion {
   id: number;
   task_id: number;
+  child_id: number | null;
   completion_date: string;
   completed_at: string;
 }

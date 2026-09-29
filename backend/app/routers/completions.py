@@ -15,15 +15,23 @@ MAX_RANGE_DAYS = 366
 def list_completions(
     date: date_type | None = None,
     routine: str | None = None,
+    child_id: int | None = None,
     db: Session = Depends(get_db),
 ):
+    """List completions of active tasks for the date (default: today on the server), optionally filtered by nonempty routine; omitted child_id selects only completions with no child."""
     completion_date = date or date_type.today()
-    return crud.get_completions(db, completion_date=completion_date, routine=routine)
+    return crud.get_completions(db, completion_date=completion_date, routine=routine, child_id=child_id)
 
 
 @router.post("/completions/toggle", response_model=schemas.ToggleResult)
 def toggle_completion(data: schemas.CompletionToggleRequest, db: Session = Depends(get_db)):
-    return crud.toggle_completion(db, task_id=data.task_id, completion_date=data.completion_date)
+    """Persist a task/date toggle and return its action and completion (None on deletion); omitted child_id selects no child; raise HTTPException(404) for a missing child and propagate unhandled database errors."""
+    result = crud.toggle_completion(
+        db, task_id=data.task_id, completion_date=data.completion_date, child_id=data.child_id
+    )
+    if result is None:
+        raise HTTPException(status_code=404, detail="Child not found")
+    return result
 
 
 @router.get("/summary", response_model=schemas.DailySummary)

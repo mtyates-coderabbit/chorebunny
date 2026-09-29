@@ -4,7 +4,7 @@ from datetime import date
 
 import pytest
 
-from app.models import Task, TaskCompletion
+from app.models import Child, Task, TaskCompletion
 
 
 TODAY = date.today().isoformat()
@@ -178,6 +178,103 @@ class TestStreaksAPI:
         assert res.json()["current_streak"] == 0
         res = client.get("/api/streaks?routine=morning")
         assert res.json()["current_streak"] == 1
+
+
+class TestChildrenAPI:
+    def test_list_children_empty(self, client):
+        res = client.get("/api/children")
+        assert res.status_code == 200
+        assert res.json() == []
+
+    def test_create_child(self, client):
+        res = client.post("/api/children", json={"name": "Alice"})
+        assert res.status_code == 201
+        data = res.json()
+        assert data["name"] == "Alice"
+        assert data["avatar"] == "🐰"
+        assert data["color"] == "#F97316"
+        assert "id" in data
+
+    def test_create_child_with_custom_avatar_and_color(self, client):
+        res = client.post("/api/children", json={"name": "Bob", "avatar": "🐻", "color": "#7DD3FC"})
+        assert res.status_code == 201
+        data = res.json()
+        assert data["avatar"] == "🐻"
+        assert data["color"] == "#7DD3FC"
+
+    def test_list_children_returns_all(self, client):
+        client.post("/api/children", json={"name": "Alice"})
+        client.post("/api/children", json={"name": "Bob"})
+        res = client.get("/api/children")
+        assert len(res.json()) == 2
+
+    def test_update_child_name(self, client):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        res = client.put(f"/api/children/{child_id}", json={"name": "Alicia"})
+        assert res.status_code == 200
+        assert res.json()["name"] == "Alicia"
+        assert res.json()["avatar"] == "🐰"
+
+    def test_update_nonexistent_child_returns_404(self, client):
+        res = client.put("/api/children/9999", json={"name": "Ghost"})
+        assert res.status_code == 404
+
+    def test_delete_child(self, client):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        res = client.delete(f"/api/children/{child_id}")
+        assert res.status_code == 204
+        assert client.get("/api/children").json() == []
+
+    def test_delete_nonexistent_child_returns_404(self, client):
+        res = client.delete("/api/children/9999")
+        assert res.status_code == 404
+
+    def test_toggle_completion_with_child_id(self, client, morning_task):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        res = client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id,
+            "completion_date": TODAY,
+            "child_id": child_id,
+        })
+        assert res.status_code == 200
+        assert res.json()["action"] == "created"
+        assert res.json()["completion"]["child_id"] == child_id
+
+    def test_two_children_can_complete_same_task_on_same_day(self, client, morning_task):
+        alice_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        bob_id = client.post("/api/children", json={"name": "Bob"}).json()["id"]
+
+        res_a = client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice_id,
+        })
+        res_b = client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": bob_id,
+        })
+        assert res_a.json()["action"] == "created"
+        assert res_b.json()["action"] == "created"
+
+    def test_list_completions_filtered_by_child(self, client, morning_task):
+        alice_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        bob_id = client.post("/api/children", json={"name": "Bob"}).json()["id"]
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice_id,
+        })
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": bob_id,
+        })
+
+        res = client.get(f"/api/completions?date={TODAY}&child_id={alice_id}")
+        assert len(res.json()) == 1
+        assert res.json()[0]["child_id"] == alice_id
+
+    def test_delete_child_cascades_completions(self, client, morning_task):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": child_id,
+        })
+        client.delete(f"/api/children/{child_id}")
+        res = client.get(f"/api/completions?date={TODAY}&child_id={child_id}")
+        assert res.json() == []
 
 
 class TestRangeSummaryAPI:
