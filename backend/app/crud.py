@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -183,7 +183,7 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
     if not dates:
         return schemas.StreakSummary(current_streak=0, longest_streak=0, last_completion_date=None)
 
-    today = datetime.utcnow().date()
+    today = date.today()
 
     # Current streak: walk backward from today
     current = 0
