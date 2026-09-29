@@ -157,6 +157,29 @@ class TestSummaryAPI:
         assert res.json() == {"status": "ok"}
 
 
+class TestStreaksAPI:
+    def test_streaks_empty(self, client):
+        res = client.get("/api/streaks")
+        assert res.status_code == 200
+        data = res.json()
+        assert data["current_streak"] == 0
+        assert data["longest_streak"] == 0
+        assert data["last_completion_date"] is None
+
+    def test_streaks_with_completion_today(self, client, morning_task):
+        client.post("/api/completions/toggle", json={"task_id": morning_task.id, "completion_date": TODAY})
+        res = client.get("/api/streaks")
+        assert res.json()["current_streak"] == 1
+        assert res.json()["last_completion_date"] == TODAY
+
+    def test_streaks_routine_filter(self, client, morning_task, evening_task):
+        client.post("/api/completions/toggle", json={"task_id": morning_task.id, "completion_date": TODAY})
+        res = client.get("/api/streaks?routine=evening")
+        assert res.json()["current_streak"] == 0
+        res = client.get("/api/streaks?routine=morning")
+        assert res.json()["current_streak"] == 1
+
+
 class TestRangeSummaryAPI:
     @pytest.mark.parametrize("start,end", [
         ("2026-09-02", "2026-09-01"),

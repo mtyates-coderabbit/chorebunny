@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -168,3 +168,58 @@ class TestRangeSummary:
         assert {stat.task_id: stat.count for stat in summary.task_stats} == {
             morning_task.id: 1, evening_task.id: 1,
         }
+
+
+class TestStreaks:
+    def test_no_completions_returns_zeros(self, db, morning_task):
+        result = crud.get_streaks(db)
+        assert result.current_streak == 0
+        assert result.longest_streak == 0
+        assert result.last_completion_date is None
+
+    def test_single_completion_today_is_streak_of_one(self, db, morning_task):
+        crud.toggle_completion(db, morning_task.id, TODAY)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 1
+        assert result.longest_streak == 1
+        assert result.last_completion_date == TODAY
+
+    def test_gap_yesterday_breaks_current_streak(self, db, morning_task):
+        two_days_ago = TODAY - timedelta(days=2)
+        crud.toggle_completion(db, morning_task.id, two_days_ago)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 0
+        assert result.longest_streak == 1
+
+    def test_consecutive_days_build_streak(self, db, morning_task):
+        for offset in range(3):
+            crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=offset))
+        result = crud.get_streaks(db)
+        assert result.current_streak == 3
+        assert result.longest_streak == 3
+
+    def test_longest_streak_survives_gap(self, db, morning_task):
+        for offset in range(4):
+            crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=offset + 10))
+        crud.toggle_completion(db, morning_task.id, TODAY)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 1
+        assert result.longest_streak == 4
+
+    def test_routine_filter_isolates_streaks(self, db, morning_task, evening_task):
+        crud.toggle_completion(db, morning_task.id, TODAY)
+        crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=1))
+        crud.toggle_completion(db, evening_task.id, TODAY)
+
+        morning = crud.get_streaks(db, routine="morning")
+        evening = crud.get_streaks(db, routine="evening")
+        assert morning.current_streak == 2
+        assert evening.current_streak == 1
+
+    def test_inactive_tasks_excluded(self, db):
+        hidden = Task(name="Hidden", routine="morning", carrot_value=1, is_active=False)
+        db.add(hidden)
+        db.commit()
+        crud.toggle_completion(db, hidden.id, TODAY)
+        result = crud.get_streaks(db)
+        assert result.current_streak == 0

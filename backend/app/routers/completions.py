@@ -31,6 +31,12 @@ def get_summary(date: date_type | None = None, db: Session = Depends(get_db)):
     return crud.get_daily_summary(db, summary_date=summary_date)
 
 
+@router.get("/streaks", response_model=schemas.StreakSummary)
+def get_streaks(routine: str | None = None, db: Session = Depends(get_db)):
+    """Return current and longest completion streaks, optionally scoped to a routine."""
+    return crud.get_streaks(db, routine=routine)
+
+
 @router.get("/summary/range", response_model=schemas.RangeSummary)
 def get_range_summary(
     start_date: date_type,
