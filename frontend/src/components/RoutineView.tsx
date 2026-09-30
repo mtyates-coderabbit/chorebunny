@@ -45,7 +45,8 @@ export function RoutineView({ routine }: Props) {
   const [showCelebrationDate, setShowCelebrationDate] = useState<string | null>(null);
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
 
-  const { data: children = [] } = useChildren();
+  const { data: children = [], isLoading: childrenLoading } = useChildren();
+  const needsChildSelection = !childrenLoading && children.length > 0 && activeChildId === null;
   const { data: tasks = [], isLoading: tasksLoading } = useTasks(routine);
   const { data: completions = [], isLoading: completionsLoading } = useCompletions(
     date,
@@ -151,16 +152,6 @@ export function RoutineView({ routine }: Props) {
       {/* Child switcher */}
       {children.length > 0 && (
         <div className="px-5 pb-1 flex gap-2 flex-wrap">
-          <button
-            onClick={() => setActiveChildId(null)}
-            className={`px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
-              activeChildId === null
-                ? "bg-orange-400 text-white border-orange-400"
-                : "bg-white text-gray-500 border-gray-200 hover:border-orange-300"
-            }`}
-          >
-            Everyone
-          </button>
           {children.map((child) => (
             <button
               key={child.id}
@@ -187,7 +178,12 @@ export function RoutineView({ routine }: Props) {
 
       {/* Task list */}
       <main className="px-5 pb-8 flex flex-col gap-3">
-        {isLoading ? (
+        {needsChildSelection ? (
+          <div className="text-center py-10 text-gray-400">
+            <p className="text-3xl mb-2">👆</p>
+            <p className="font-semibold text-base">Select a child to start</p>
+          </div>
+        ) : isLoading ? (
           <div className="text-center py-10 text-gray-400 text-lg font-semibold">
             Loading...
           </div>

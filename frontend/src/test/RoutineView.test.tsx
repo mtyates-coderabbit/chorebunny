@@ -169,6 +169,15 @@ describe("RoutineView", () => {
     });
   });
 
+  it("shows child selection prompt when children exist but none is selected", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue([
+      { id: 1, name: "Alice", avatar: "🐰", color: "#F97316", created_at: "" },
+    ]);
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Select a child to start");
+    expect(screen.queryByText("Brush teeth")).not.toBeInTheDocument();
+  });
+
   it("renders evening heading for evening routine", async () => {
     vi.mocked(api.fetchTasks).mockResolvedValue([]);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
