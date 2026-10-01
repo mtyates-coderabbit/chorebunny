@@ -14,6 +14,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create application settings with a default morning cutoff of noon."""
     op.execute("""
         CREATE TABLE settings (
             key   TEXT PRIMARY KEY,
@@ -24,4 +25,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Drop the settings table and discard all stored application settings."""
     op.drop_table("settings")

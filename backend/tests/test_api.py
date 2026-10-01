@@ -159,20 +159,24 @@ class TestSummaryAPI:
 
 class TestSettingsAPI:
     def test_get_settings_returns_defaults(self, client):
+        """Return a noon cutoff when no setting has been persisted."""
         res = client.get("/api/settings")
         assert res.status_code == 200
         assert res.json()["morning_cutoff_hour"] == 12
 
     def test_put_settings_updates_cutoff(self, client):
+        """Accept a valid cutoff and return its updated value."""
         res = client.put("/api/settings", json={"morning_cutoff_hour": 10})
         assert res.status_code == 200
         assert res.json()["morning_cutoff_hour"] == 10
 
     def test_put_settings_rejects_out_of_range(self, client):
+        """Reject cutoff hours outside the inclusive range from zero to 23."""
         assert client.put("/api/settings", json={"morning_cutoff_hour": 24}).status_code == 422
         assert client.put("/api/settings", json={"morning_cutoff_hour": -1}).status_code == 422
 
     def test_put_settings_partial_update_preserves_other_keys(self, client):
+        """Preserve the stored cutoff when an update omits it."""
         client.put("/api/settings", json={"morning_cutoff_hour": 9})
         res = client.put("/api/settings", json={})
         assert res.json()["morning_cutoff_hour"] == 9

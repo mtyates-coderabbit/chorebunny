@@ -8,6 +8,7 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
+    /** Replace the current route with morning before the local cutoff hour, or evening otherwise. */
     const redirect = (cutoff: number) => {
       const hour = new Date().getHours();
       router.replace(hour < cutoff ? "/morning" : "/evening");
