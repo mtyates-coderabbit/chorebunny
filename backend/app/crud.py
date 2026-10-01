@@ -1,8 +1,8 @@
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import delete, exists, select
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app import models, schemas
 
@@ -63,12 +63,25 @@ def delete_child(db: Session, child_id: int) -> bool:
     return True
 
 
-def get_tasks(db: Session, routine: str | None = None, active_only: bool = True) -> list[models.Task]:
-    q = select(models.Task)
+def get_tasks(
+    db: Session,
+    routine: str | None = None,
+    active_only: bool = True,
+    child_id: int | None = None,
+) -> list[models.Task]:
+    """Return tasks, optionally filtered to those visible to a given child (global + assigned)."""
+    q = select(models.Task).options(selectinload(models.Task.assignments))
     if routine:
         q = q.where(models.Task.routine == routine)
     if active_only:
         q = q.where(models.Task.is_active == True)  # noqa: E712
+    if child_id is not None:
+        has_any = exists().where(models.TaskChildAssignment.task_id == models.Task.id)
+        assigned_to_child = exists().where(
+            models.TaskChildAssignment.task_id == models.Task.id,
+            models.TaskChildAssignment.child_id == child_id,
+        )
+        q = q.where(~has_any | assigned_to_child)
     q = q.order_by(models.Task.sort_order, models.Task.id)
     return list(db.scalars(q))
 
@@ -120,6 +133,28 @@ def reorder_task(db: Session, task_id: int, data: schemas.TaskReorder) -> bool:
         db.rollback()
         raise
     return True
+
+
+def set_task_assignments(
+    db: Session, task_id: int, child_ids: list[int]
+) -> models.Task | None:
+    """Replace all child assignments for the task; empty list makes it visible to all children."""
+    task = db.get(models.Task, task_id)
+    if not task:
+        return None
+    db.execute(
+        delete(models.TaskChildAssignment).where(
+            models.TaskChildAssignment.task_id == task_id
+        )
+    )
+    for child_id in child_ids:
+        db.add(models.TaskChildAssignment(task_id=task_id, child_id=child_id))
+    db.commit()
+    return db.scalar(
+        select(models.Task)
+        .options(selectinload(models.Task.assignments))
+        .where(models.Task.id == task_id)
+    )
 
 
 def get_completions(
