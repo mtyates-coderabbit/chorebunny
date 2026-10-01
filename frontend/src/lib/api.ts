@@ -1,4 +1,4 @@
-import type { Child, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, Task, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -12,11 +12,17 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
-export function fetchTasks(routine?: string, activeOnly = true): Promise<Task[]> {
+export function fetchTasks(routine?: string, activeOnly = true, childId?: number): Promise<Task[]> {
   const params = new URLSearchParams();
   if (routine) params.set("routine", routine);
   params.set("active_only", String(activeOnly));
+  if (childId !== undefined) params.set("child_id", String(childId));
   return req(`/api/tasks?${params}`);
+}
+
+/** Replace the per-child assignment list for a task; empty array restores global visibility. */
+export function setTaskAssignments(id: number, data: TaskAssignmentUpdate): Promise<Task> {
+  return req(`/api/tasks/${id}/assignments`, { method: "PUT", body: JSON.stringify(data) });
 }
 
 export function createTask(data: TaskCreate): Promise<Task> {

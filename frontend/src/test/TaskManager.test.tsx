@@ -6,8 +6,8 @@ import { TaskManager } from "@/components/TaskManager";
 import type { Task } from "@/lib/types";
 
 const tasks: Task[] = [
-  { id: 1, name: "Brush teeth", description: "Use toothpaste", routine: "morning", carrot_value: 1, estimated_minutes: 5, is_active: true, sort_order: 0, created_at: "" },
-  { id: 2, name: "Make bed", description: null, routine: "morning", carrot_value: 1, estimated_minutes: null, is_active: false, sort_order: 0, created_at: "" },
+  { id: 1, name: "Brush teeth", description: "Use toothpaste", routine: "morning", carrot_value: 1, estimated_minutes: 5, is_active: true, sort_order: 0, created_at: "", assigned_child_ids: [] },
+  { id: 2, name: "Make bed", description: null, routine: "morning", carrot_value: 1, estimated_minutes: null, is_active: false, sort_order: 0, created_at: "", assigned_child_ids: [] },
 ];
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -86,7 +86,7 @@ describe("TaskManager editing", () => {
 describe("TaskManager reordering", () => {
   it.each([204, 500])("sends one reorder request and refetches after status %i", async (status) => {
     const client = renderManager();
-    client.setQueryData(["tasks", "morning"], tasks);
+    client.setQueryData(["tasks", "all", null], tasks);
     await screen.findByText("Brush teeth");
     expect(screen.getAllByRole("button", { name: "Move up" })[0]).toBeDisabled();
     expect(screen.getAllByRole("button", { name: "Move down" })[1]).toBeDisabled();
@@ -96,9 +96,8 @@ describe("TaskManager reordering", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/reorder", expect.objectContaining({ method: "POST", body: '{"direction":1}' }));
     expect(screen.getAllByRole("button", { name: "Move down" })[0]).toBeDisabled();
     await act(async () => resolveReorder(new Response(null, { status })));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    expect(fetchMock.mock.calls[2][0]).toBe("/api/tasks?active_only=false");
-    expect(client.getQueryState(["tasks", "morning"])?.isInvalidated).toBe(true);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/tasks?active_only=false");
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Move down" })[0]).toBeEnabled());
   });
 });

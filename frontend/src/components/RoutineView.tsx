@@ -53,7 +53,7 @@ export function RoutineView({ routine }: Props) {
   } = useChildren();
   const needsChildSelection = childrenLoaded && children.length > 0 && activeChildId === null;
   const canShowProgress = childrenLoaded && !needsChildSelection;
-  const { data: tasks = [], isLoading: tasksLoading } = useTasks(routine);
+  const { data: tasks = [], isLoading: tasksLoading } = useTasks(routine, activeChildId ?? undefined);
   const { data: completions = [], isLoading: completionsLoading } = useCompletions(
     date,
     routine,

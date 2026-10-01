@@ -2,8 +2,8 @@
 
 import { useState } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
-import { createTask, deleteTask, fetchTasks, reorderTask, updateTask } from "@/lib/api";
-import type { Task } from "@/lib/types";
+import { createTask, deleteTask, fetchChildren, fetchTasks, reorderTask, setTaskAssignments, updateTask } from "@/lib/api";
+import type { Child, Task } from "@/lib/types";
 
 interface EditState {
   id: number;
@@ -18,8 +18,12 @@ interface EditState {
 export function TaskManager() {
   const qc = useQueryClient();
   const { data: tasks = [], isLoading } = useQuery({
-    queryKey: ["tasks", "all"],
+    queryKey: ["tasks", "all", null],
     queryFn: () => fetchTasks(undefined, false),
+  });
+  const { data: children = [] } = useQuery({
+    queryKey: ["children"],
+    queryFn: fetchChildren,
   });
 
   const [form, setForm] = useState({
@@ -54,6 +58,12 @@ export function TaskManager() {
     mutationFn: ({ id, direction }: { id: number; direction: -1 | 1 }) =>
       reorderTask(id, direction),
     onSettled: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+
+  const assignMutation = useMutation({
+    mutationFn: ({ id, child_ids }: { id: number; child_ids: number[] }) =>
+      setTaskAssignments(id, { child_ids }),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });
 
   const handleCreate = (e: React.FormEvent) => {
@@ -110,6 +120,23 @@ export function TaskManager() {
     const neighbor = siblings[idx + direction];
     if (!neighbor) return;
     reorderMutation.mutate({ id: task.id, direction });
+  };
+
+  const toggleChildAssignment = (task: Task, childId: number) => {
+    const assigned = task.assigned_child_ids;
+    const isGlobal = assigned.length === 0;
+    const isAssigned = isGlobal || assigned.includes(childId);
+    let newIds: number[];
+    if (isGlobal) {
+      newIds = children.filter((c) => c.id !== childId).map((c) => c.id);
+    } else if (isAssigned) {
+      newIds = assigned.filter((id) => id !== childId);
+      if (children.length > 0 && newIds.length === children.length) newIds = [];
+    } else {
+      newIds = [...assigned, childId];
+      if (newIds.length === children.length) newIds = [];
+    }
+    assignMutation.mutate({ id: task.id, child_ids: newIds });
   };
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
@@ -229,6 +256,30 @@ export function TaskManager() {
           <p className="font-semibold text-gray-800 text-sm">{task.name}</p>
           {task.description && (
             <p className="text-xs text-gray-400 truncate">{task.description}</p>
+          )}
+          {children.length > 0 && (
+            <div className="flex gap-1 flex-wrap mt-1">
+              {children.map((child: Child) => {
+                const isGlobal = task.assigned_child_ids.length === 0;
+                const active = isGlobal || task.assigned_child_ids.includes(child.id);
+                return (
+                  <button
+                    key={child.id}
+                    onClick={() => toggleChildAssignment(task, child.id)}
+                    disabled={assignMutation.isPending}
+                    title={active ? `Remove ${child.name}` : `Add ${child.name}`}
+                    className={`text-xs px-1.5 py-0.5 rounded-lg border transition-colors disabled:opacity-50 ${
+                      active
+                        ? "text-white border-transparent"
+                        : "bg-white text-gray-400 border-gray-200 hover:border-orange-300"
+                    }`}
+                    style={active ? { background: child.color, borderColor: child.color } : undefined}
+                  >
+                    {child.avatar}
+                  </button>
+                );
+              })}
+            </div>
           )}
         </div>
         {task.estimated_minutes && (
