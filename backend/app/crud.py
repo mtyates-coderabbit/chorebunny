@@ -7,6 +7,26 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 
 
+def get_settings(db: Session) -> schemas.Settings:
+    """Return current settings, falling back to defaults for any missing keys."""
+    rows = {r.key: r.value for r in db.scalars(select(models.Setting))}
+    return schemas.Settings(
+        morning_cutoff_hour=int(rows.get("morning_cutoff_hour", 12)),
+    )
+
+
+def update_settings(db: Session, data: schemas.SettingsUpdate) -> schemas.Settings:
+    """Apply non-None fields from data to the settings table and return updated settings."""
+    for key, value in data.model_dump(exclude_none=True).items():
+        setting = db.get(models.Setting, key)
+        if setting:
+            setting.value = str(value)
+        else:
+            db.add(models.Setting(key=key, value=str(value)))
+    db.commit()
+    return get_settings(db)
+
+
 def get_children(db: Session) -> list[models.Child]:
     """Return all child profiles ordered by creation time."""
     return list(db.scalars(select(models.Child).order_by(models.Child.created_at)))
@@ -171,26 +191,27 @@ def toggle_completion(
         )
 
 
-def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.RangeSummary:
+def get_range_summary(db: Session, start_date: date, end_date: date, child_id: int | None = None) -> schemas.RangeSummary:
     """Return daily carrot totals for the inclusive range, in date order.
 
     Both routines use currently active tasks and their current carrot values,
     including for past dates. Each day has the same available total; days with
     no completions earn zero. A reversed range returns an empty days list.
-    Database errors propagate.
+    Optionally scoped to a single child. Database errors propagate.
     """
     all_tasks = get_tasks(db, active_only=True)
     total_carrots = sum(t.carrot_value for t in all_tasks)
 
-    completions = list(
-        db.scalars(
-            select(models.TaskCompletion)
-            .join(models.Task)
-            .where(models.TaskCompletion.completion_date >= start_date)
-            .where(models.TaskCompletion.completion_date <= end_date)
-            .where(models.Task.is_active == True)  # noqa: E712
-        )
+    q = (
+        select(models.TaskCompletion)
+        .join(models.Task)
+        .where(models.TaskCompletion.completion_date >= start_date)
+        .where(models.TaskCompletion.completion_date <= end_date)
+        .where(models.Task.is_active == True)  # noqa: E712
     )
+    if child_id is not None:
+        q = q.where(models.TaskCompletion.child_id == child_id)
+    completions = list(db.scalars(q))
 
     earned_by_date: dict[date, int] = {}
     earned_by_routine: dict[tuple[date, str], int] = {}

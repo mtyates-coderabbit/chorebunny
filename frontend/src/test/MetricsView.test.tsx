@@ -1,4 +1,5 @@
 import { render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactNode } from "react";
@@ -6,7 +7,7 @@ import { MetricsView } from "@/components/MetricsView";
 import type { RangeSummary, Task } from "@/lib/types";
 import * as api from "@/lib/api";
 
-vi.mock("@/lib/api", () => ({ fetchRangeSummary: vi.fn(), fetchTasks: vi.fn() }));
+vi.mock("@/lib/api", () => ({ fetchRangeSummary: vi.fn(), fetchTasks: vi.fn(), fetchChildren: vi.fn().mockResolvedValue([]) }));
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => <>{children}</>,
   LineChart: ({ data }: { data: unknown }) => <output data-testid="trend">{JSON.stringify(data)}</output>,
@@ -33,6 +34,7 @@ function renderMetrics() {
 
 beforeEach(() => {
   vi.clearAllMocks();
+  vi.mocked(api.fetchChildren).mockResolvedValue([]);
   vi.mocked(api.fetchRangeSummary).mockResolvedValue(range);
   vi.mocked(api.fetchTasks).mockImplementation(async (routine) => tasks.filter((task) => task.routine === routine));
 });
@@ -44,7 +46,7 @@ describe("MetricsView", () => {
     vi.setSystemTime(new Date(2026, 2, 10, hour, 30));
     renderMetrics();
     await screen.findByTestId("trend");
-    expect(api.fetchRangeSummary).toHaveBeenCalledWith("2025-12-11", "2026-03-10");
+    expect(api.fetchRangeSummary).toHaveBeenCalledWith("2025-12-11", "2026-03-10", undefined);
   });
 
   it("uses each routine's earnings and matching total", async () => {
@@ -83,6 +85,49 @@ describe("MetricsView", () => {
     expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load metrics");
     expect(screen.queryByText("90-day completion calendar")).not.toBeInTheDocument();
     expect(screen.queryByText("Complete some tasks to see stats here.")).not.toBeInTheDocument();
+  });
+
+  it.each(["loading", "error"])("keeps child filters usable during a child-specific %s state", async (state) => {
+    const user = userEvent.setup();
+    vi.mocked(api.fetchChildren).mockResolvedValue([
+      { id: 1, name: "Alex", avatar: "🐰", color: "#F97316", created_at: "" },
+      { id: 2, name: "Sam", avatar: "🐻", color: "#7DD3FC", created_at: "" },
+    ]);
+    vi.mocked(api.fetchRangeSummary).mockImplementation((_start, _end, childId) => {
+      if (childId === 1) {
+        return state === "loading" ? new Promise(() => {}) : Promise.reject(new Error("Unavailable"));
+      }
+      return Promise.resolve(range);
+    });
+    renderMetrics();
+    await screen.findByTestId("trend");
+    expect(screen.getByRole("button", { name: "All", pressed: true })).toBeInTheDocument();
+    await user.click(await screen.findByRole("button", { name: /Alex/ }));
+
+    if (state === "loading") {
+      expect(await screen.findByText("Loading metrics...")).toBeInTheDocument();
+    } else {
+      expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load metrics. Please try again.");
+    }
+    expect(screen.getByRole("button", { name: "All", pressed: false })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Alex/, pressed: true })).toBeEnabled();
+    expect(screen.getByRole("button", { name: /Sam/, pressed: false })).toBeEnabled();
+    expect(screen.queryByText("90-day completion calendar")).not.toBeInTheDocument();
+    expect(screen.queryByText("Complete some tasks to see stats here.")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: /Sam/ }));
+    await screen.findByTestId("trend");
+    expect(api.fetchRangeSummary).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), 2);
+    expect(screen.getByRole("button", { name: /Sam/, pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Alex/, pressed: false })).toBeInTheDocument();
+    expect(screen.queryByText("Loading metrics...")).not.toBeInTheDocument();
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "All" }));
+    await screen.findByTestId("trend");
+    expect(api.fetchRangeSummary).toHaveBeenLastCalledWith(expect.any(String), expect.any(String), undefined);
+    expect(screen.getByRole("button", { name: "All", pressed: true })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: /Sam/, pressed: false })).toBeInTheDocument();
   });
 
   it("keeps the loading state while the range is pending", () => {

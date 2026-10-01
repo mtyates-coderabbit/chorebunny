@@ -139,3 +139,15 @@ class StreakSummary(BaseModel):
     current_streak: int
     longest_streak: int
     last_completion_date: date | None
+
+
+class Settings(BaseModel):
+    """Application-wide settings returned from the API."""
+
+    morning_cutoff_hour: int = Field(default=12, ge=0, le=23)
+
+
+class SettingsUpdate(BaseModel):
+    """Partial settings update; omitted fields are unchanged."""
+
+    morning_cutoff_hour: int | None = Field(default=None, ge=0, le=23)

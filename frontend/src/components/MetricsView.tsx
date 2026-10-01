@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar, Cell,
 } from "recharts";
+import { useChildren } from "@/hooks/useChildren";
 import { useRangeSummary } from "@/hooks/useRangeSummary";
 import { useTasks } from "@/hooks/useTasks";
 import { formatLocalDate } from "@/lib/dates";
@@ -174,11 +175,16 @@ function Heatmap({ days }: HeatmapProps) {
  * (zero when that total is zero).
  */
 export function MetricsView() {
+  const [activeChildId, setActiveChildId] = useState<number | null>(null);
+
+  const { data: children = [] } = useChildren();
   const now = new Date();
   const end = formatLocalDate(now);
   const start90 = daysAgo(89, now);
 
-  const { data: range90, isLoading: loading90, isError: error90 } = useRangeSummary(start90, end);
+  const { data: range90, isLoading: loading90, isError: error90 } = useRangeSummary(
+    start90, end, activeChildId ?? undefined
+  );
   const { data: morningTasks = [] } = useTasks("morning");
   const { data: eveningTasks = [] } = useTasks("evening");
 
@@ -198,81 +204,114 @@ export function MetricsView() {
     return [...range90.task_stats].sort((a, b) => b.count - a.count).slice(0, 8);
   }, [range90]);
 
-  if (loading90) {
-    return <div className="px-5 py-10 text-center text-gray-400 font-semibold">Loading metrics...</div>;
-  }
-
-  if (error90) {
-    return <div role="alert" className="px-5 py-10 text-center text-gray-400 font-semibold">Unable to load metrics. Please try again.</div>;
-  }
-
   return (
     <div className="px-5 pb-10">
-      {/* Heatmap */}
-      <section className="mb-8">
-        <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
-          90-day completion calendar
-        </h2>
-        <div className="bg-white rounded-2xl p-4 border" style={{ borderColor: "#F0E8DC" }}>
-          {range90 && <Heatmap days={range90.days} />}
+      {/* Child picker */}
+      {children.length > 0 && (
+        <div className="flex gap-2 flex-wrap mb-5">
+          <button
+            aria-pressed={activeChildId === null}
+            onClick={() => setActiveChildId(null)}
+            className={`px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
+              activeChildId === null
+                ? "bg-orange-400 text-white border-orange-400"
+                : "bg-white text-gray-500 border-gray-200 hover:border-orange-300"
+            }`}
+          >
+            All
+          </button>
+          {children.map((child) => (
+            <button
+              key={child.id}
+              aria-pressed={activeChildId === child.id}
+              onClick={() => setActiveChildId(child.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
+                activeChildId === child.id
+                  ? "text-white border-transparent"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-orange-300"
+              }`}
+              style={activeChildId === child.id ? { background: child.color, borderColor: child.color } : undefined}
+            >
+              <span>{child.avatar}</span>
+              {child.name}
+            </button>
+          ))}
         </div>
-      </section>
+      )}
 
-      {/* Trend lines */}
-      <section className="mb-8">
-        <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
-          30-day completion trend
-        </h2>
-        <div className="bg-white rounded-2xl p-4 border" style={{ borderColor: "#F0E8DC" }}>
-          <ResponsiveContainer width="100%" height={180}>
-            <LineChart data={trendData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
-              <CartesianGrid strokeDasharray="3 3" stroke="#F0E8DC"/>
-              <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
-              <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }}/>
-              <Tooltip formatter={(v) => `${v}%`} />
-              <Line type="monotone" dataKey="morning" stroke="#F97316" strokeWidth={2} dot={false} name="Morning"/>
-              <Line type="monotone" dataKey="evening" stroke="#7DD3FC" strokeWidth={2} dot={false} name="Evening"/>
-            </LineChart>
-          </ResponsiveContainer>
-          <div className="flex gap-4 mt-2 justify-center" style={{ fontSize: 12 }}>
-            <span style={{ color: "#F97316" }}>— Morning</span>
-            <span style={{ color: "#7DD3FC" }}>— Evening</span>
-          </div>
-        </div>
-      </section>
+      {loading90 ? (
+        <div className="px-5 py-10 text-center text-gray-400 font-semibold">Loading metrics...</div>
+      ) : error90 ? (
+        <div role="alert" className="px-5 py-10 text-center text-gray-400 font-semibold">Unable to load metrics. Please try again.</div>
+      ) : (
+        <>
+          {/* Heatmap */}
+          <section className="mb-8">
+            <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
+              90-day completion calendar
+            </h2>
+            <div className="bg-white rounded-2xl p-4 border" style={{ borderColor: "#F0E8DC" }}>
+              {range90 && <Heatmap days={range90.days} />}
+            </div>
+          </section>
 
-      {/* Top tasks */}
-      <section>
-        <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
-          Tasks (90 days)
-        </h2>
-        <div className="bg-white rounded-2xl p-4 border" style={{ borderColor: "#F0E8DC" }}>
-          {taskCompletionCounts.length === 0 ? (
-            <p className="text-sm text-gray-400 text-center py-4">Complete some tasks to see stats here.</p>
-          ) : (
-            <ResponsiveContainer width="100%" height={taskCompletionCounts.length * 36 + 16}>
-              <BarChart
-                layout="vertical"
-                data={taskCompletionCounts}
-                margin={{ top: 0, right: 8, left: 8, bottom: 0 }}
-              >
-                <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false}/>
-                <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }}/>
-                <Tooltip formatter={(v) => [`${v} completions`]}/>
-                <Bar dataKey="count" radius={[0, 4, 4, 0]}>
-                  {taskCompletionCounts.map((entry, i) => (
-                    <Cell key={i} fill={entry.routine === "morning" ? "#F97316" : "#7DD3FC"}/>
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          )}
-          <div className="flex gap-4 mt-2 justify-center" style={{ fontSize: 12 }}>
-            <span style={{ color: "#F97316" }}>■ Morning</span>
-            <span style={{ color: "#7DD3FC" }}>■ Evening</span>
-          </div>
-        </div>
-      </section>
+          {/* Trend lines */}
+          <section className="mb-8">
+            <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
+              30-day completion trend
+            </h2>
+            <div className="bg-white rounded-2xl p-4 border" style={{ borderColor: "#F0E8DC" }}>
+              <ResponsiveContainer width="100%" height={180}>
+                <LineChart data={trendData} margin={{ top: 4, right: 8, left: -24, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" stroke="#F0E8DC"/>
+                  <XAxis dataKey="date" tick={{ fontSize: 10 }} interval={4} />
+                  <YAxis domain={[0, 100]} tickFormatter={(v) => `${v}%`} tick={{ fontSize: 10 }}/>
+                  <Tooltip formatter={(v) => `${v}%`} />
+                  <Line type="monotone" dataKey="morning" stroke="#F97316" strokeWidth={2} dot={false} name="Morning"/>
+                  <Line type="monotone" dataKey="evening" stroke="#7DD3FC" strokeWidth={2} dot={false} name="Evening"/>
+                </LineChart>
+              </ResponsiveContainer>
+              <div className="flex gap-4 mt-2 justify-center" style={{ fontSize: 12 }}>
+                <span style={{ color: "#F97316" }}>— Morning</span>
+                <span style={{ color: "#7DD3FC" }}>— Evening</span>
+              </div>
+            </div>
+          </section>
+
+          {/* Top tasks */}
+          <section>
+            <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
+              Tasks (90 days)
+            </h2>
+            <div className="bg-white rounded-2xl p-4 border" style={{ borderColor: "#F0E8DC" }}>
+              {taskCompletionCounts.length === 0 ? (
+                <p className="text-sm text-gray-400 text-center py-4">Complete some tasks to see stats here.</p>
+              ) : (
+                <ResponsiveContainer width="100%" height={taskCompletionCounts.length * 36 + 16}>
+                  <BarChart
+                    layout="vertical"
+                    data={taskCompletionCounts}
+                    margin={{ top: 0, right: 8, left: 8, bottom: 0 }}
+                  >
+                    <XAxis type="number" tick={{ fontSize: 10 }} allowDecimals={false}/>
+                    <YAxis type="category" dataKey="name" width={120} tick={{ fontSize: 11 }}/>
+                    <Tooltip formatter={(v) => [`${v} completions`]}/>
+                    <Bar dataKey="count" radius={[0, 4, 4, 0]}>
+                      {taskCompletionCounts.map((entry, i) => (
+                        <Cell key={i} fill={entry.routine === "morning" ? "#F97316" : "#7DD3FC"}/>
+                      ))}
+                    </Bar>
+                  </BarChart>
+                </ResponsiveContainer>
+              )}
+              <div className="flex gap-4 mt-2 justify-center" style={{ fontSize: 12 }}>
+                <span style={{ color: "#F97316" }}>■ Morning</span>
+                <span style={{ color: "#7DD3FC" }}>■ Evening</span>
+              </div>
+            </div>
+          </section>
+        </>
+      )}
     </div>
   );
 }
