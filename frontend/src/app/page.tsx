@@ -3,6 +3,8 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+const SETTINGS_TIMEOUT_MS = 3_000;
+
 /** Redirect to morning or evening based on the configured cutoff hour (default: noon). */
 export default function Home() {
   const router = useRouter();
@@ -13,7 +15,7 @@ export default function Home() {
       router.replace(hour < cutoff ? "/morning" : "/evening");
     };
 
-    fetch("/api/settings")
+    fetch("/api/settings", { signal: AbortSignal.timeout(SETTINGS_TIMEOUT_MS) })
       .then((r) => r.json())
       .then((s) => redirect(s.morning_cutoff_hour ?? 12))
       .catch(() => redirect(12));
