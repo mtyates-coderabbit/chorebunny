@@ -50,15 +50,17 @@ def get_streaks(routine: Literal["morning", "evening"] | None = None, db: Sessio
 def get_range_summary(
     start_date: date_type,
     end_date: date_type,
+    child_id: int | None = None,
     db: Session = Depends(get_db),
 ):
     """Return carrot totals for an inclusive range of at most 366 days.
 
     Totals use currently active tasks and their current values. Missing
     completions earn zero. Reversed or oversized ranges are rejected.
+    Optionally scoped to a single child via child_id.
     """
     if start_date > end_date:
         raise HTTPException(status_code=422, detail="start_date must be on or before end_date")
     if (end_date - start_date).days + 1 > MAX_RANGE_DAYS:
         raise HTTPException(status_code=422, detail=f"Date range must not exceed {MAX_RANGE_DAYS} days")
-    return crud.get_range_summary(db, start_date=start_date, end_date=end_date)
+    return crud.get_range_summary(db, start_date=start_date, end_date=end_date, child_id=child_id)

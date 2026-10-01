@@ -191,26 +191,27 @@ def toggle_completion(
         )
 
 
-def get_range_summary(db: Session, start_date: date, end_date: date) -> schemas.RangeSummary:
+def get_range_summary(db: Session, start_date: date, end_date: date, child_id: int | None = None) -> schemas.RangeSummary:
     """Return daily carrot totals for the inclusive range, in date order.
 
     Both routines use currently active tasks and their current carrot values,
     including for past dates. Each day has the same available total; days with
     no completions earn zero. A reversed range returns an empty days list.
-    Database errors propagate.
+    Optionally scoped to a single child. Database errors propagate.
     """
     all_tasks = get_tasks(db, active_only=True)
     total_carrots = sum(t.carrot_value for t in all_tasks)
 
-    completions = list(
-        db.scalars(
-            select(models.TaskCompletion)
-            .join(models.Task)
-            .where(models.TaskCompletion.completion_date >= start_date)
-            .where(models.TaskCompletion.completion_date <= end_date)
-            .where(models.Task.is_active == True)  # noqa: E712
-        )
+    q = (
+        select(models.TaskCompletion)
+        .join(models.Task)
+        .where(models.TaskCompletion.completion_date >= start_date)
+        .where(models.TaskCompletion.completion_date <= end_date)
+        .where(models.Task.is_active == True)  # noqa: E712
     )
+    if child_id is not None:
+        q = q.where(models.TaskCompletion.child_id == child_id)
+    completions = list(db.scalars(q))
 
     earned_by_date: dict[date, int] = {}
     earned_by_routine: dict[tuple[date, str], int] = {}

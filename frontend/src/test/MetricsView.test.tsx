@@ -6,7 +6,7 @@ import { MetricsView } from "@/components/MetricsView";
 import type { RangeSummary, Task } from "@/lib/types";
 import * as api from "@/lib/api";
 
-vi.mock("@/lib/api", () => ({ fetchRangeSummary: vi.fn(), fetchTasks: vi.fn() }));
+vi.mock("@/lib/api", () => ({ fetchRangeSummary: vi.fn(), fetchTasks: vi.fn(), fetchChildren: vi.fn().mockResolvedValue([]) }));
 vi.mock("recharts", () => ({
   ResponsiveContainer: ({ children }: { children: ReactNode }) => <>{children}</>,
   LineChart: ({ data }: { data: unknown }) => <output data-testid="trend">{JSON.stringify(data)}</output>,
@@ -44,7 +44,7 @@ describe("MetricsView", () => {
     vi.setSystemTime(new Date(2026, 2, 10, hour, 30));
     renderMetrics();
     await screen.findByTestId("trend");
-    expect(api.fetchRangeSummary).toHaveBeenCalledWith("2025-12-11", "2026-03-10");
+    expect(api.fetchRangeSummary).toHaveBeenCalledWith("2025-12-11", "2026-03-10", undefined);
   });
 
   it("uses each routine's earnings and matching total", async () => {
