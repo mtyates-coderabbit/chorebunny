@@ -81,6 +81,8 @@ export function fetchSummary(date: string): Promise<DailySummary> {
  * Rejects reversed ranges and HTTP errors with status and response text, and
  * propagates network, response-reading, and JSON parsing failures.
  */
-export function fetchRangeSummary(startDate: string, endDate: string): Promise<RangeSummary> {
-  return req(`/api/summary/range?start_date=${startDate}&end_date=${endDate}`);
+export function fetchRangeSummary(startDate: string, endDate: string, childId?: number): Promise<RangeSummary> {
+  const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
+  if (childId !== undefined) params.set("child_id", String(childId));
+  return req(`/api/summary/range?${params}`);
 }

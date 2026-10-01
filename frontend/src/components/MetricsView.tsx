@@ -5,6 +5,7 @@ import {
   LineChart, Line, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid,
   BarChart, Bar, Cell,
 } from "recharts";
+import { useChildren } from "@/hooks/useChildren";
 import { useRangeSummary } from "@/hooks/useRangeSummary";
 import { useTasks } from "@/hooks/useTasks";
 import { formatLocalDate } from "@/lib/dates";
@@ -174,11 +175,16 @@ function Heatmap({ days }: HeatmapProps) {
  * (zero when that total is zero).
  */
 export function MetricsView() {
+  const [activeChildId, setActiveChildId] = useState<number | null>(null);
+
+  const { data: children = [] } = useChildren();
   const now = new Date();
   const end = formatLocalDate(now);
   const start90 = daysAgo(89, now);
 
-  const { data: range90, isLoading: loading90, isError: error90 } = useRangeSummary(start90, end);
+  const { data: range90, isLoading: loading90, isError: error90 } = useRangeSummary(
+    start90, end, activeChildId ?? undefined
+  );
   const { data: morningTasks = [] } = useTasks("morning");
   const { data: eveningTasks = [] } = useTasks("evening");
 
@@ -208,6 +214,37 @@ export function MetricsView() {
 
   return (
     <div className="px-5 pb-10">
+      {/* Child picker */}
+      {children.length > 0 && (
+        <div className="flex gap-2 flex-wrap mb-5">
+          <button
+            onClick={() => setActiveChildId(null)}
+            className={`px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
+              activeChildId === null
+                ? "bg-orange-400 text-white border-orange-400"
+                : "bg-white text-gray-500 border-gray-200 hover:border-orange-300"
+            }`}
+          >
+            All
+          </button>
+          {children.map((child) => (
+            <button
+              key={child.id}
+              onClick={() => setActiveChildId(child.id)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-sm font-semibold border transition-colors ${
+                activeChildId === child.id
+                  ? "text-white border-transparent"
+                  : "bg-white text-gray-600 border-gray-200 hover:border-orange-300"
+              }`}
+              style={activeChildId === child.id ? { background: child.color, borderColor: child.color } : undefined}
+            >
+              <span>{child.avatar}</span>
+              {child.name}
+            </button>
+          ))}
+        </div>
+      )}
+
       {/* Heatmap */}
       <section className="mb-8">
         <h2 className="text-base font-semibold mb-3" style={{ color: "#3D2B1F" }}>
