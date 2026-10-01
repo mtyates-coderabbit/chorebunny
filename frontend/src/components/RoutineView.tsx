@@ -45,13 +45,20 @@ export function RoutineView({ routine }: Props) {
   const [showCelebrationDate, setShowCelebrationDate] = useState<string | null>(null);
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
 
-  const { data: children = [], isLoading: childrenLoading } = useChildren();
-  const needsChildSelection = !childrenLoading && children.length > 0 && activeChildId === null;
+  const {
+    data: children = [],
+    isSuccess: childrenLoaded,
+    isError: childrenError,
+    refetch: retryChildren,
+  } = useChildren();
+  const needsChildSelection = childrenLoaded && children.length > 0 && activeChildId === null;
+  const canShowProgress = childrenLoaded && !needsChildSelection;
   const { data: tasks = [], isLoading: tasksLoading } = useTasks(routine);
   const { data: completions = [], isLoading: completionsLoading } = useCompletions(
     date,
     routine,
-    activeChildId ?? undefined
+    activeChildId ?? undefined,
+    canShowProgress
   );
   const toggle = useToggleCompletion(date, activeChildId ?? undefined);
 
@@ -64,7 +71,7 @@ export function RoutineView({ routine }: Props) {
     .filter((t) => completedIds.has(t.id))
     .reduce((s, t) => s + t.carrot_value, 0);
 
-  const isLoading = tasksLoading || completionsLoading;
+  const isLoading = !childrenLoaded || tasksLoading || completionsLoading;
 
   const handleToggle = (taskId: number) => {
     const wasCompleted = completedIds.has(taskId);
@@ -135,8 +142,7 @@ export function RoutineView({ routine }: Props) {
             {isToday
               ? "Today"
               : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date + "T00:00:00"))}
-            {" · "}
-            {completedCount}/{totalCount} done
+            {canShowProgress && ` · ${completedCount}/${totalCount} done`}
           </p>
           <button
             onClick={() => router.push(`/${routine}?date=${offsetDate(date, 1)}`)}
@@ -171,14 +177,26 @@ export function RoutineView({ routine }: Props) {
       )}
 
       {/* Mascot + carrot counter */}
-      <div className="px-5 py-2 flex flex-col items-center">
-        <RabbitMascot percent={percent} routine={routine} />
-        <CarrotCounter earned={earnedCarrots} total={totalCarrots} />
-      </div>
+      {canShowProgress && (
+        <div className="px-5 py-2 flex flex-col items-center">
+          <RabbitMascot percent={percent} routine={routine} />
+          <CarrotCounter earned={earnedCarrots} total={totalCarrots} />
+        </div>
+      )}
 
       {/* Task list */}
       <main className="px-5 pb-8 flex flex-col gap-3">
-        {needsChildSelection ? (
+        {childrenError ? (
+          <div role="alert" className="text-center py-10 text-gray-400">
+            <p className="font-semibold text-base">Unable to load children. Please try again.</p>
+            <button
+              onClick={() => retryChildren()}
+              className="mt-2 text-orange-400 underline"
+            >
+              Retry
+            </button>
+          </div>
+        ) : needsChildSelection ? (
           <div className="text-center py-10 text-gray-400">
             <p className="text-3xl mb-2">👆</p>
             <p className="font-semibold text-base">Select a child to start</p>
