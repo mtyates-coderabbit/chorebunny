@@ -3,12 +3,20 @@
 import { useEffect } from "react";
 import { useRouter } from "next/navigation";
 
+/** Redirect to morning or evening based on the configured cutoff hour (default: noon). */
 export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    const hour = new Date().getHours();
-    router.replace(hour < 12 ? "/morning" : "/evening");
+    const redirect = (cutoff: number) => {
+      const hour = new Date().getHours();
+      router.replace(hour < cutoff ? "/morning" : "/evening");
+    };
+
+    fetch("/api/settings")
+      .then((r) => r.json())
+      .then((s) => redirect(s.morning_cutoff_hour ?? 12))
+      .catch(() => redirect(12));
   }, [router]);
 
   return (

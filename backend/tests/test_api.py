@@ -157,6 +157,27 @@ class TestSummaryAPI:
         assert res.json() == {"status": "ok"}
 
 
+class TestSettingsAPI:
+    def test_get_settings_returns_defaults(self, client):
+        res = client.get("/api/settings")
+        assert res.status_code == 200
+        assert res.json()["morning_cutoff_hour"] == 12
+
+    def test_put_settings_updates_cutoff(self, client):
+        res = client.put("/api/settings", json={"morning_cutoff_hour": 10})
+        assert res.status_code == 200
+        assert res.json()["morning_cutoff_hour"] == 10
+
+    def test_put_settings_rejects_out_of_range(self, client):
+        assert client.put("/api/settings", json={"morning_cutoff_hour": 24}).status_code == 422
+        assert client.put("/api/settings", json={"morning_cutoff_hour": -1}).status_code == 422
+
+    def test_put_settings_partial_update_preserves_other_keys(self, client):
+        client.put("/api/settings", json={"morning_cutoff_hour": 9})
+        res = client.put("/api/settings", json={})
+        assert res.json()["morning_cutoff_hour"] == 9
+
+
 class TestStreaksAPI:
     def test_streaks_empty(self, client):
         res = client.get("/api/streaks")

@@ -7,6 +7,26 @@ from sqlalchemy.orm import Session
 from app import models, schemas
 
 
+def get_settings(db: Session) -> schemas.Settings:
+    """Return current settings, falling back to defaults for any missing keys."""
+    rows = {r.key: r.value for r in db.scalars(select(models.Setting))}
+    return schemas.Settings(
+        morning_cutoff_hour=int(rows.get("morning_cutoff_hour", 12)),
+    )
+
+
+def update_settings(db: Session, data: schemas.SettingsUpdate) -> schemas.Settings:
+    """Apply non-None fields from data to the settings table and return updated settings."""
+    for key, value in data.model_dump(exclude_none=True).items():
+        setting = db.get(models.Setting, key)
+        if setting:
+            setting.value = str(value)
+        else:
+            db.add(models.Setting(key=key, value=str(value)))
+    db.commit()
+    return get_settings(db)
+
+
 def get_children(db: Session) -> list[models.Child]:
     """Return all child profiles ordered by creation time."""
     return list(db.scalars(select(models.Child).order_by(models.Child.created_at)))
