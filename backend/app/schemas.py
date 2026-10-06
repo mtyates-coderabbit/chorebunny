@@ -67,8 +67,15 @@ class Task(BaseModel):
     is_active: bool
     sort_order: int
     created_at: datetime
+    assigned_child_ids: list[int] = []
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TaskAssignmentUpdate(BaseModel):
+    """Replace all per-child assignments for a task; empty list restores global visibility."""
+
+    child_ids: list[int]
 
 
 class CompletionToggleRequest(BaseModel):
