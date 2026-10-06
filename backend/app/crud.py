@@ -144,10 +144,17 @@ def get_completions(
     return list(db.scalars(q))
 
 
+def task_exists(db: Session, task_id: int) -> bool:
+    """Return whether a task with the given id exists."""
+    return db.get(models.Task, task_id) is not None
+
+
 def toggle_completion(
     db: Session, task_id: int, completion_date: date, child_id: int | None = None
 ) -> schemas.ToggleResult | None:
-    """Persist a toggle for the task/date and child (None selects no child); return deleted with no completion or created with the new or concurrently inserted completion, or None for a missing child; propagate IntegrityError when insertion fails with no matching completion and no missing child, and other database errors."""
+    """Persist a toggle for the task/date and child (None selects no child); return deleted with no completion or created with the new or concurrently inserted completion, or None for a missing task or child; propagate IntegrityError when insertion fails with no matching completion and no missing task/child, and other database errors."""
+    if not task_exists(db, task_id):
+        return None
     if child_id is not None and db.get(models.Child, child_id) is None:
         return None
 
@@ -197,10 +204,15 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     Both routines use currently active tasks and their current carrot values,
     including for past dates. Each day has the same available total; days with
     no completions earn zero. A reversed range returns an empty days list.
-    Optionally scoped to a single child. Database errors propagate.
+    Optionally scoped to a single child; otherwise totals scale by the number
+    of children in the household so multiple children completing the same
+    task doesn't push earned carrots past the available total. Database
+    errors propagate.
     """
     all_tasks = get_tasks(db, active_only=True)
     total_carrots = sum(t.carrot_value for t in all_tasks)
+    if child_id is None:
+        total_carrots *= max(len(get_children(db)), 1)
 
     q = (
         select(models.TaskCompletion)
@@ -309,11 +321,22 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
     )
 
 
-def get_daily_summary(db: Session, summary_date: date) -> schemas.DailySummary:
+def get_daily_summary(
+    db: Session, summary_date: date, child_id: int | None = None
+) -> schemas.DailySummary:
+    """Return carrot totals for the date; a given child_id scopes to that child, otherwise completions from any child count."""
     def routine_summary(routine: str) -> schemas.RoutineSummary:
         tasks = get_tasks(db, routine=routine, active_only=True)
-        completions = get_completions(db, completion_date=summary_date, routine=routine)
-        completed_ids = {c.task_id for c in completions}
+        q = (
+            select(models.TaskCompletion)
+            .join(models.Task)
+            .where(models.TaskCompletion.completion_date == summary_date)
+            .where(models.Task.is_active == True)  # noqa: E712
+            .where(models.Task.routine == routine)
+        )
+        if child_id is not None:
+            q = q.where(models.TaskCompletion.child_id == child_id)
+        completed_ids = {c.task_id for c in db.scalars(q)}
         total_carrots = sum(t.carrot_value for t in tasks)
         earned_carrots = sum(t.carrot_value for t in tasks if t.id in completed_ids)
         return schemas.RoutineSummary(

@@ -25,19 +25,21 @@ def list_completions(
 
 @router.post("/completions/toggle", response_model=schemas.ToggleResult)
 def toggle_completion(data: schemas.CompletionToggleRequest, db: Session = Depends(get_db)):
-    """Persist a task/date toggle and return its action and completion (None on deletion); omitted child_id selects no child; raise HTTPException(404) for a missing child and propagate unhandled database errors."""
+    """Persist a task/date toggle and return its action and completion (None on deletion); omitted child_id selects no child; raise HTTPException(404) for a missing task or child and propagate unhandled database errors."""
     result = crud.toggle_completion(
         db, task_id=data.task_id, completion_date=data.completion_date, child_id=data.child_id
     )
     if result is None:
-        raise HTTPException(status_code=404, detail="Child not found")
+        detail = "Task not found" if not crud.task_exists(db, data.task_id) else "Child not found"
+        raise HTTPException(status_code=404, detail=detail)
     return result
 
 
 @router.get("/summary", response_model=schemas.DailySummary)
-def get_summary(date: date_type | None = None, db: Session = Depends(get_db)):
+def get_summary(date: date_type | None = None, child_id: int | None = None, db: Session = Depends(get_db)):
+    """Return carrot totals for the date; omitted child_id aggregates completions from any child."""
     summary_date = date or date_type.today()
-    return crud.get_daily_summary(db, summary_date=summary_date)
+    return crud.get_daily_summary(db, summary_date=summary_date, child_id=child_id)
 
 
 @router.get("/streaks", response_model=schemas.StreakSummary)
