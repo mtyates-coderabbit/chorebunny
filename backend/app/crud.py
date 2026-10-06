@@ -142,6 +142,7 @@ def set_task_assignments(
     task = db.get(models.Task, task_id)
     if not task:
         return None
+    child_ids = list(dict.fromkeys(child_ids))
     db.execute(
         delete(models.TaskChildAssignment).where(
             models.TaskChildAssignment.task_id == task_id

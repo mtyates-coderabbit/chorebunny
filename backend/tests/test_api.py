@@ -358,6 +358,21 @@ class TestTaskAssignmentsAPI:
         tasks = client.get("/api/tasks").json()
         assert tasks[0]["assigned_child_ids"] == [child["id"]]
 
+    def test_duplicate_child_ids_replace_assignments_once(self, client):
+        task = self._make_task(client)
+        alice = self._make_child(client, "Alice")
+        bob = self._make_child(client, "Bob")
+        carol = self._make_child(client, "Carol")
+        url = f"/api/tasks/{task['id']}/assignments"
+        assert client.put(url, json={"child_ids": [alice["id"]]}).status_code == 200
+
+        res = client.put(url, json={"child_ids": [bob["id"], carol["id"], bob["id"]]})
+
+        assert res.status_code == 200
+        assert sorted(res.json()["assigned_child_ids"]) == [bob["id"], carol["id"]]
+        tasks = client.get("/api/tasks").json()
+        assert sorted(tasks[0]["assigned_child_ids"]) == [bob["id"], carol["id"]]
+
     def test_clear_assignments_restores_global(self, client):
         task = self._make_task(client)
         child = self._make_child(client)

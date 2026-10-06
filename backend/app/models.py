@@ -24,6 +24,7 @@ class TaskChildAssignment(Base):
     child_id: Mapped[int] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), primary_key=True)
 
     task: Mapped["Task"] = relationship("Task", back_populates="assignments")
+    child: Mapped["Child"] = relationship("Child", back_populates="assignments")
 
 
 class Child(Base):
@@ -39,6 +40,9 @@ class Child(Base):
 
     completions: Mapped[list["TaskCompletion"]] = relationship(
         "TaskCompletion", back_populates="child", cascade="all, delete-orphan"
+    )
+    assignments: Mapped[list["TaskChildAssignment"]] = relationship(
+        "TaskChildAssignment", back_populates="child", cascade="all, delete-orphan"
     )
 
 

@@ -122,6 +122,11 @@ export function TaskManager() {
     reorderMutation.mutate({ id: task.id, direction });
   };
 
+  const assignChildren = (task: Task, childIds: number[]) => {
+    assignMutation.reset();
+    assignMutation.mutate({ id: task.id, child_ids: childIds });
+  };
+
   const toggleChildAssignment = (task: Task, childId: number) => {
     const assigned = task.assigned_child_ids;
     const isGlobal = assigned.length === 0;
@@ -131,12 +136,11 @@ export function TaskManager() {
       newIds = children.filter((c) => c.id !== childId).map((c) => c.id);
     } else if (isAssigned) {
       newIds = assigned.filter((id) => id !== childId);
-      if (children.length > 0 && newIds.length === children.length) newIds = [];
     } else {
       newIds = [...assigned, childId];
-      if (newIds.length === children.length) newIds = [];
     }
-    assignMutation.mutate({ id: task.id, child_ids: newIds });
+    if (newIds.length === 0) return;
+    assignChildren(task, newIds);
   };
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading...</div>;
@@ -262,11 +266,12 @@ export function TaskManager() {
               {children.map((child: Child) => {
                 const isGlobal = task.assigned_child_ids.length === 0;
                 const active = isGlobal || task.assigned_child_ids.includes(child.id);
+                const isLastAssigned = active && (isGlobal ? children.length : task.assigned_child_ids.length) === 1;
                 return (
                   <button
                     key={child.id}
                     onClick={() => toggleChildAssignment(task, child.id)}
-                    disabled={assignMutation.isPending}
+                    disabled={assignMutation.isPending || isLastAssigned}
                     title={active ? `Remove ${child.name}` : `Add ${child.name}`}
                     className={`text-xs px-1.5 py-0.5 rounded-lg border transition-colors disabled:opacity-50 ${
                       active
@@ -279,6 +284,15 @@ export function TaskManager() {
                   </button>
                 );
               })}
+              {task.assigned_child_ids.length > 0 && (
+                <button
+                  onClick={() => assignChildren(task, [])}
+                  disabled={assignMutation.isPending}
+                  className="text-xs px-1.5 py-0.5 rounded-lg border border-gray-200 text-gray-500 hover:border-orange-300 disabled:opacity-50"
+                >
+                  Assign to all children
+                </button>
+              )}
             </div>
           )}
         </div>
@@ -377,6 +391,9 @@ export function TaskManager() {
       </form>
 
       {/* Task lists */}
+      {assignMutation.error && (
+        <p role="alert" className="text-sm text-red-500">{assignMutation.error.message}</p>
+      )}
       {[
         { label: "☀️ Morning", items: morning },
         { label: "🌙 Evening", items: evening },
