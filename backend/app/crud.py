@@ -240,14 +240,18 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     Both routines use currently active tasks and their current carrot values,
     including for past dates. Days with no completions earn zero. A reversed
     range returns an empty days list. Optionally scoped to a single child;
-    otherwise each day's total scales by the number of children in the
-    household, plus one slot on dates that have an unassigned completion
+    otherwise each task's total scales by the number of children it is
+    visible to, plus one slot on dates that have an unassigned completion
     (at least one slot per day), matching get_daily_summary. Database errors
     propagate.
     """
-    all_tasks = get_tasks(db, active_only=True)
-    base_total = sum(t.carrot_value for t in all_tasks)
-    num_children = len(get_children(db)) if child_id is None else None
+    all_tasks = get_tasks(db, active_only=True, child_id=child_id)
+    num_children = len(get_children(db)) if child_id is None else 0
+    base_total = sum(
+        t.carrot_value * ((len(t.assignments) or max(num_children, 1)) if child_id is None else 1)
+        for t in all_tasks
+    )
+    unassigned_total = sum(t.carrot_value for t in all_tasks) if num_children else 0
 
     q = (
         select(models.TaskCompletion)
@@ -280,7 +284,7 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     current = start_date
     while current <= end_date:
         if child_id is None:
-            day_total = base_total * max(num_children + int(current in unassigned_dates), 1)
+            day_total = base_total + unassigned_total * int(current in unassigned_dates)
         else:
             day_total = base_total
         days.append(schemas.DayCarrots(
@@ -366,8 +370,8 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
 def get_daily_summary(
     db: Session, summary_date: date, child_id: int | None = None
 ) -> schemas.DailySummary:
-    """Return carrot totals for one child or the household, including an extra capacity slot for unassigned completions on the date."""
-    all_tasks = get_tasks(db, active_only=True)
+    """Return assignment-aware carrot totals, including an extra capacity slot for unassigned completions on the date."""
+    all_tasks = get_tasks(db, active_only=True, child_id=child_id)
     q = (
         select(models.TaskCompletion)
         .join(models.Task)
@@ -377,21 +381,24 @@ def get_daily_summary(
     if child_id is not None:
         q = q.where(models.TaskCompletion.child_id == child_id)
     completions = list(db.scalars(q))
-    capacity = 1
-    if child_id is None:
-        has_unassigned = any(c.child_id is None for c in completions)
-        capacity = max(len(get_children(db)) + int(has_unassigned), 1)
+    num_children = len(get_children(db)) if child_id is None else 0
+    has_unassigned = any(c.child_id is None for c in completions)
+    task_capacities = {
+        t.id: max((len(t.assignments) or num_children) + int(has_unassigned), 1)
+        if child_id is None else 1
+        for t in all_tasks
+    }
 
     def routine_summary(routine: str) -> schemas.RoutineSummary:
-        """Return routine totals using the date's household capacity and each completion's value."""
+        """Return routine totals using each task's capacity and each completion's value."""
         task_values = {t.id: t.carrot_value for t in all_tasks if t.routine == routine}
         completed_ids = [c.task_id for c in completions if c.task_id in task_values]
-        total_carrots = sum(task_values.values()) * capacity
+        total_carrots = sum(value * task_capacities[task_id] for task_id, value in task_values.items())
         earned_carrots = sum(task_values[task_id] for task_id in completed_ids)
         return schemas.RoutineSummary(
             total_carrots=total_carrots,
             earned_carrots=earned_carrots,
-            total_count=len(task_values) * capacity,
+            total_count=sum(task_capacities[task_id] for task_id in task_values),
             completed_count=len(completed_ids),
         )
 
