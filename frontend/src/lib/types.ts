@@ -8,6 +8,7 @@ export interface Task {
   is_active: boolean;
   sort_order: number;
   created_at: string;
+  assigned_child_ids: number[];
 }
 
 export interface Child {
@@ -75,6 +76,10 @@ export interface TaskUpdate {
   estimated_minutes?: number | null;
   is_active?: boolean;
   sort_order?: number;
+}
+
+export interface TaskAssignmentUpdate {
+  child_ids: number[];
 }
 
 export interface DayCarrots {

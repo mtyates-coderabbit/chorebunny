@@ -15,6 +15,18 @@ class Setting(Base):
     value: Mapped[str] = mapped_column(Text, nullable=False)
 
 
+class TaskChildAssignment(Base):
+    """Associates a task with a specific child; absence of rows means the task is visible to all children."""
+
+    __tablename__ = "task_child_assignments"
+
+    task_id: Mapped[int] = mapped_column(Integer, ForeignKey("tasks.id", ondelete="CASCADE"), primary_key=True)
+    child_id: Mapped[int] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), primary_key=True)
+
+    task: Mapped["Task"] = relationship("Task", back_populates="assignments")
+    child: Mapped["Child"] = relationship("Child", back_populates="assignments")
+
+
 class Child(Base):
     """A child profile within the household."""
 
@@ -28,6 +40,9 @@ class Child(Base):
 
     completions: Mapped[list["TaskCompletion"]] = relationship(
         "TaskCompletion", back_populates="child", cascade="all, delete-orphan"
+    )
+    assignments: Mapped[list["TaskChildAssignment"]] = relationship(
+        "TaskChildAssignment", back_populates="child", cascade="all, delete-orphan"
     )
 
 
@@ -47,6 +62,14 @@ class Task(Base):
     completions: Mapped[list["TaskCompletion"]] = relationship(
         "TaskCompletion", back_populates="task", cascade="all, delete-orphan"
     )
+    assignments: Mapped[list["TaskChildAssignment"]] = relationship(
+        "TaskChildAssignment", back_populates="task", cascade="all, delete-orphan"
+    )
+
+    @property
+    def assigned_child_ids(self) -> list[int]:
+        """Return IDs of children explicitly assigned to this task; empty means all children."""
+        return [a.child_id for a in self.assignments]
 
 
 class TaskCompletion(Base):

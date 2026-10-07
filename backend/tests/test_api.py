@@ -454,3 +454,84 @@ class TestRangeSummaryAPI:
         day = res.json()["days"][0]
         assert day["total_carrots"] == morning_task.carrot_value
         assert day["earned_carrots"] == morning_task.carrot_value
+
+
+class TestTaskAssignmentsAPI:
+    def _make_task(self, client):
+        return client.post("/api/tasks", json={"name": "T", "routine": "morning", "carrot_value": 1}).json()
+
+    def _make_child(self, client, name="Alice"):
+        return client.post("/api/children", json={"name": name, "avatar": "🐰", "color": "#F97316"}).json()
+
+    def test_task_starts_with_no_assignments(self, client):
+        task = self._make_task(client)
+        assert task["assigned_child_ids"] == []
+
+    def test_set_assignments_returns_updated_task(self, client):
+        task = self._make_task(client)
+        child = self._make_child(client)
+        res = client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": [child["id"]]})
+        assert res.status_code == 200
+        assert res.json()["assigned_child_ids"] == [child["id"]]
+
+    def test_list_tasks_includes_assigned_child_ids(self, client):
+        task = self._make_task(client)
+        child = self._make_child(client)
+        client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": [child["id"]]})
+        tasks = client.get("/api/tasks").json()
+        assert tasks[0]["assigned_child_ids"] == [child["id"]]
+
+    def test_duplicate_child_ids_replace_assignments_once(self, client):
+        task = self._make_task(client)
+        alice = self._make_child(client, "Alice")
+        bob = self._make_child(client, "Bob")
+        carol = self._make_child(client, "Carol")
+        url = f"/api/tasks/{task['id']}/assignments"
+        assert client.put(url, json={"child_ids": [alice["id"]]}).status_code == 200
+
+        res = client.put(url, json={"child_ids": [bob["id"], carol["id"], bob["id"]]})
+
+        assert res.status_code == 200
+        assert sorted(res.json()["assigned_child_ids"]) == [bob["id"], carol["id"]]
+        tasks = client.get("/api/tasks").json()
+        assert sorted(tasks[0]["assigned_child_ids"]) == [bob["id"], carol["id"]]
+
+    def test_clear_assignments_restores_global(self, client):
+        task = self._make_task(client)
+        child = self._make_child(client)
+        client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": [child["id"]]})
+        res = client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": []})
+        assert res.json()["assigned_child_ids"] == []
+
+    def test_child_id_filter_returns_global_tasks(self, client):
+        task = self._make_task(client)
+        child = self._make_child(client)
+        tasks = client.get(f"/api/tasks?child_id={child['id']}").json()
+        assert any(t["id"] == task["id"] for t in tasks)
+
+    def test_child_id_filter_excludes_tasks_assigned_to_other_child(self, client):
+        task = self._make_task(client)
+        alice = self._make_child(client, "Alice")
+        bob = self._make_child(client, "Bob")
+        client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": [alice["id"]]})
+        tasks = client.get(f"/api/tasks?child_id={bob['id']}").json()
+        assert not any(t["id"] == task["id"] for t in tasks)
+
+    def test_child_id_filter_includes_tasks_assigned_to_that_child(self, client):
+        task = self._make_task(client)
+        alice = self._make_child(client, "Alice")
+        client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": [alice["id"]]})
+        tasks = client.get(f"/api/tasks?child_id={alice['id']}").json()
+        assert any(t["id"] == task["id"] for t in tasks)
+
+    def test_assignments_deleted_when_task_deleted(self, client):
+        task = self._make_task(client)
+        child = self._make_child(client)
+        client.put(f"/api/tasks/{task['id']}/assignments", json={"child_ids": [child["id"]]})
+        client.delete(f"/api/tasks/{task['id']}")
+        tasks = client.get("/api/tasks?active_only=false").json()
+        assert not any(t["id"] == task["id"] for t in tasks)
+
+    def test_set_assignments_unknown_task_returns_404(self, client):
+        res = client.put("/api/tasks/9999/assignments", json={"child_ids": []})
+        assert res.status_code == 404

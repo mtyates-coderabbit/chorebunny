@@ -3,9 +3,10 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 import pytest
+from sqlalchemy import select, text
 
 from app import crud, schemas
-from app.models import Child, Task
+from app.models import Child, Task, TaskChildAssignment
 
 
 TODAY = date.today()
@@ -323,3 +324,21 @@ class TestChildCRUD:
 
         completions = crud.get_completions(db, completion_date=TODAY, child_id=alice.id)
         assert completions == []
+
+    @pytest.mark.parametrize("foreign_keys", [False, True])
+    def test_delete_child_cascades_assignments(self, db, morning_task, evening_task, foreign_keys):
+        db.execute(text(f"PRAGMA foreign_keys = {int(foreign_keys)}"))
+        alice = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        bob = crud.create_child(db, schemas.ChildCreate(name="Bob"))
+        alice_id, bob_id = alice.id, bob.id
+        morning_id, evening_id = morning_task.id, evening_task.id
+        crud.set_task_assignments(db, morning_id, [alice_id, bob_id])
+        crud.set_task_assignments(db, evening_id, [alice_id])
+
+        assert crud.delete_child(db, alice_id) is True
+
+        assignments = list(db.scalars(select(TaskChildAssignment)))
+        assert [(a.task_id, a.child_id) for a in assignments] == [(morning_id, bob_id)]
+        assert db.get(Task, morning_id) is not None
+        assert db.get(Task, evening_id) is not None
+        assert db.get(Child, bob_id) is not None

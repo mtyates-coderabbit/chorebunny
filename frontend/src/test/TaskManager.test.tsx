@@ -6,8 +6,8 @@ import { TaskManager } from "@/components/TaskManager";
 import type { Task } from "@/lib/types";
 
 const tasks: Task[] = [
-  { id: 1, name: "Brush teeth", description: "Use toothpaste", routine: "morning", carrot_value: 1, estimated_minutes: 5, is_active: true, sort_order: 0, created_at: "" },
-  { id: 2, name: "Make bed", description: null, routine: "morning", carrot_value: 1, estimated_minutes: null, is_active: false, sort_order: 0, created_at: "" },
+  { id: 1, name: "Brush teeth", description: "Use toothpaste", routine: "morning", carrot_value: 1, estimated_minutes: 5, is_active: true, sort_order: 0, created_at: "", assigned_child_ids: [] },
+  { id: 2, name: "Make bed", description: null, routine: "morning", carrot_value: 1, estimated_minutes: null, is_active: false, sort_order: 0, created_at: "", assigned_child_ids: [] },
 ];
 const fetchMock = vi.fn<typeof fetch>();
 
@@ -86,7 +86,7 @@ describe("TaskManager editing", () => {
 describe("TaskManager reordering", () => {
   it.each([204, 500])("sends one reorder request and refetches after status %i", async (status) => {
     const client = renderManager();
-    client.setQueryData(["tasks", "morning"], tasks);
+    client.setQueryData(["tasks", "all", null], tasks);
     await screen.findByText("Brush teeth");
     expect(screen.getAllByRole("button", { name: "Move up" })[0]).toBeDisabled();
     expect(screen.getAllByRole("button", { name: "Move down" })[1]).toBeDisabled();
@@ -96,9 +96,84 @@ describe("TaskManager reordering", () => {
     expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/reorder", expect.objectContaining({ method: "POST", body: '{"direction":1}' }));
     expect(screen.getAllByRole("button", { name: "Move down" })[0]).toBeDisabled();
     await act(async () => resolveReorder(new Response(null, { status })));
-    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(3));
-    expect(fetchMock.mock.calls[2][0]).toBe("/api/tasks?active_only=false");
-    expect(client.getQueryState(["tasks", "morning"])?.isInvalidated).toBe(true);
+    await waitFor(() => expect(fetchMock).toHaveBeenCalledTimes(4));
+    expect(fetchMock.mock.calls[3][0]).toBe("/api/tasks?active_only=false");
     await waitFor(() => expect(screen.getAllByRole("button", { name: "Move down" })[0]).toBeEnabled());
+  });
+});
+
+describe("TaskManager assignments", () => {
+  const children = [
+    { id: 1, name: "Alice", avatar: "🐰", color: "#F97316", created_at: "" },
+    { id: 2, name: "Bob", avatar: "🐻", color: "#7DD3FC", created_at: "" },
+  ];
+
+  async function renderAssignments(assignedIds: number[], childCount = 2) {
+    let task = { ...tasks[0], assigned_child_ids: assignedIds };
+    fetchMock.mockImplementation(async (url, options) => {
+      if (url === "/api/children") return Response.json(children.slice(0, childCount));
+      if (url === "/api/tasks/1/assignments") {
+        const { child_ids } = JSON.parse(options?.body as string) as { child_ids: number[] };
+        task = { ...task, assigned_child_ids: child_ids };
+        return Response.json(task);
+      }
+      return Response.json([task]);
+    });
+    renderManager();
+    await screen.findByTitle("Remove Alice");
+  }
+
+  it.each([{ assigned: [1], childCount: 2 }, { assigned: [1], childCount: 1 }, { assigned: [], childCount: 1 }])(
+    "prevents removing the last child with $assigned and $childCount children",
+    async ({ assigned, childCount }) => {
+      await renderAssignments(assigned, childCount);
+      const remove = screen.getByTitle("Remove Alice");
+      expect(remove).toBeDisabled();
+      fetchMock.mockClear();
+      await userEvent.click(remove);
+      expect(fetchMock).not.toHaveBeenCalled();
+    }
+  );
+
+  it.each([{ assigned: [] }, { assigned: [1, 2] }])("removes a child from assignments $assigned without making the task global", async ({ assigned }) => {
+    await renderAssignments(assigned);
+    await userEvent.click(screen.getByTitle("Remove Alice"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/assignments", expect.objectContaining({
+      method: "PUT", body: JSON.stringify({ child_ids: [2] }),
+    }));
+    await screen.findByTitle("Add Alice");
+    expect(screen.getByTitle("Remove Bob")).toBeDisabled();
+  });
+
+  it("keeps all current children explicitly assigned until the parent restores global visibility", async () => {
+    await renderAssignments([1]);
+    await userEvent.click(screen.getByTitle("Add Bob"));
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/assignments", expect.objectContaining({
+      method: "PUT", body: JSON.stringify({ child_ids: [1, 2] }),
+    }));
+    await waitFor(() => expect(screen.getByTitle("Remove Bob")).toBeEnabled());
+    await userEvent.click(screen.getByRole("button", { name: "Assign to all children" }));
+    expect(fetchMock).toHaveBeenCalledWith("/api/tasks/1/assignments", expect.objectContaining({
+      method: "PUT", body: JSON.stringify({ child_ids: [] }),
+    }));
+    await waitFor(() => expect(screen.queryByRole("button", { name: "Assign to all children" })).not.toBeInTheDocument());
+  });
+
+  it.each(["toggle", "global"])("shows assignment failures and clears the alert during a %s retry", async (action) => {
+    await renderAssignments([1]);
+    const button = action === "toggle"
+      ? screen.getByTitle("Add Bob")
+      : screen.getByRole("button", { name: "Assign to all children" });
+    fetchMock.mockResolvedValueOnce(new Response("Assignment update failed", { status: 500 }));
+    await userEvent.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Assignment update failed");
+    expect(screen.getByTitle("Add Bob")).toBeInTheDocument();
+    let resolveAssignment!: (response: Response) => void;
+    fetchMock.mockReturnValueOnce(new Promise((resolve) => { resolveAssignment = resolve; }));
+    await userEvent.click(button);
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(button).toBeDisabled();
+    await act(async () => resolveAssignment(Response.json(tasks[0])));
+    await waitFor(() => expect(button).toBeEnabled());
   });
 });
