@@ -202,14 +202,16 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     """Return daily carrot totals for the inclusive range, in date order.
 
     Both routines use currently active tasks and their current carrot values,
-    including for past dates. Each day has the same available total; days with
-    no completions earn zero. A reversed range returns an empty days list.
-    Optionally scoped to a single child; otherwise totals scale by the number
-    of children in the household, plus one slot when the range includes
-    unassigned completions (at least one slot in total). Database errors propagate.
+    including for past dates. Days with no completions earn zero. A reversed
+    range returns an empty days list. Optionally scoped to a single child;
+    otherwise each day's total scales by the number of children in the
+    household, plus one slot on dates that have an unassigned completion
+    (at least one slot per day), matching get_daily_summary. Database errors
+    propagate.
     """
     all_tasks = get_tasks(db, active_only=True)
-    total_carrots = sum(t.carrot_value for t in all_tasks)
+    base_total = sum(t.carrot_value for t in all_tasks)
+    num_children = len(get_children(db)) if child_id is None else None
 
     q = (
         select(models.TaskCompletion)
@@ -221,13 +223,11 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     if child_id is not None:
         q = q.where(models.TaskCompletion.child_id == child_id)
     completions = list(db.scalars(q))
-    if child_id is None:
-        has_unassigned = any(c.child_id is None for c in completions)
-        total_carrots *= max(len(get_children(db)) + int(has_unassigned), 1)
 
     earned_by_date: dict[date, int] = {}
     earned_by_routine: dict[tuple[date, str], int] = {}
     count_by_task: dict[int, int] = {}
+    unassigned_dates: set[date] = set()
     for c in completions:
         task = next((t for t in all_tasks if t.id == c.task_id), None)
         if task:
@@ -237,14 +237,20 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
             key = (c.completion_date, task.routine)
             earned_by_routine[key] = earned_by_routine.get(key, 0) + task.carrot_value
             count_by_task[c.task_id] = count_by_task.get(c.task_id, 0) + 1
+            if child_id is None and c.child_id is None:
+                unassigned_dates.add(c.completion_date)
 
     days: list[schemas.DayCarrots] = []
     current = start_date
     while current <= end_date:
+        if child_id is None:
+            day_total = base_total * max(num_children + int(current in unassigned_dates), 1)
+        else:
+            day_total = base_total
         days.append(schemas.DayCarrots(
             date=current,
             earned_carrots=earned_by_date.get(current, 0),
-            total_carrots=total_carrots,
+            total_carrots=day_total,
             morning_earned_carrots=earned_by_routine.get((current, "morning"), 0),
             evening_earned_carrots=earned_by_routine.get((current, "evening"), 0),
         ))
