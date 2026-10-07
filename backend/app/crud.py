@@ -205,14 +205,11 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     including for past dates. Each day has the same available total; days with
     no completions earn zero. A reversed range returns an empty days list.
     Optionally scoped to a single child; otherwise totals scale by the number
-    of children in the household so multiple children completing the same
-    task doesn't push earned carrots past the available total. Database
-    errors propagate.
+    of children in the household, plus one slot when the range includes
+    unassigned completions (at least one slot in total). Database errors propagate.
     """
     all_tasks = get_tasks(db, active_only=True)
     total_carrots = sum(t.carrot_value for t in all_tasks)
-    if child_id is None:
-        total_carrots *= max(len(get_children(db)), 1)
 
     q = (
         select(models.TaskCompletion)
@@ -224,6 +221,9 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     if child_id is not None:
         q = q.where(models.TaskCompletion.child_id == child_id)
     completions = list(db.scalars(q))
+    if child_id is None:
+        has_unassigned = any(c.child_id is None for c in completions)
+        total_carrots *= max(len(get_children(db)) + int(has_unassigned), 1)
 
     earned_by_date: dict[date, int] = {}
     earned_by_routine: dict[tuple[date, str], int] = {}
@@ -324,25 +324,32 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
 def get_daily_summary(
     db: Session, summary_date: date, child_id: int | None = None
 ) -> schemas.DailySummary:
-    """Return carrot totals for the date; a given child_id scopes to that child, otherwise completions from any child count."""
+    """Return carrot totals for one child or the household, including an extra capacity slot for unassigned completions on the date."""
+    all_tasks = get_tasks(db, active_only=True)
+    q = (
+        select(models.TaskCompletion)
+        .join(models.Task)
+        .where(models.TaskCompletion.completion_date == summary_date)
+        .where(models.Task.is_active == True)  # noqa: E712
+    )
+    if child_id is not None:
+        q = q.where(models.TaskCompletion.child_id == child_id)
+    completions = list(db.scalars(q))
+    capacity = 1
+    if child_id is None:
+        has_unassigned = any(c.child_id is None for c in completions)
+        capacity = max(len(get_children(db)) + int(has_unassigned), 1)
+
     def routine_summary(routine: str) -> schemas.RoutineSummary:
-        tasks = get_tasks(db, routine=routine, active_only=True)
-        q = (
-            select(models.TaskCompletion)
-            .join(models.Task)
-            .where(models.TaskCompletion.completion_date == summary_date)
-            .where(models.Task.is_active == True)  # noqa: E712
-            .where(models.Task.routine == routine)
-        )
-        if child_id is not None:
-            q = q.where(models.TaskCompletion.child_id == child_id)
-        completed_ids = {c.task_id for c in db.scalars(q)}
-        total_carrots = sum(t.carrot_value for t in tasks)
-        earned_carrots = sum(t.carrot_value for t in tasks if t.id in completed_ids)
+        """Return routine totals using the date's household capacity and each completion's value."""
+        task_values = {t.id: t.carrot_value for t in all_tasks if t.routine == routine}
+        completed_ids = [c.task_id for c in completions if c.task_id in task_values]
+        total_carrots = sum(task_values.values()) * capacity
+        earned_carrots = sum(task_values[task_id] for task_id in completed_ids)
         return schemas.RoutineSummary(
             total_carrots=total_carrots,
             earned_carrots=earned_carrots,
-            total_count=len(tasks),
+            total_count=len(task_values) * capacity,
             completed_count=len(completed_ids),
         )
 

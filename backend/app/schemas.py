@@ -52,7 +52,7 @@ class TaskUpdate(BaseModel):
 
     @field_validator("name", "routine", "carrot_value", "is_active", "sort_order")
     @classmethod
-    def _reject_explicit_null(cls, v):
+    def _reject_explicit_null(cls: type["TaskUpdate"], v: str | int | bool | None) -> str | int | bool:
         """Reject an explicit null for fields that are non-nullable on the Task model; omitted fields are unaffected."""
         if v is None:
             raise ValueError("must not be null")

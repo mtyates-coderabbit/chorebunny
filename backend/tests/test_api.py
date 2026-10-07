@@ -152,6 +152,58 @@ class TestCompletionsAPI:
 
 
 class TestSummaryAPI:
+    @pytest.mark.parametrize("child_count", [0, 1, 2])
+    @pytest.mark.parametrize("unassigned", [False, True])
+    def test_household_daily_and_range_totals_agree(
+        self, client, morning_task, evening_task, child_count, unassigned
+    ):
+        child_ids = [
+            client.post("/api/children", json={"name": f"Child {i}"}).json()["id"]
+            for i in range(child_count)
+        ]
+        for child_id in child_ids:
+            for task in (morning_task, evening_task):
+                response = client.post("/api/completions/toggle", json={
+                    "task_id": task.id, "completion_date": TODAY, "child_id": child_id,
+                })
+                assert response.status_code == 200
+        if unassigned:
+            response = client.post("/api/completions/toggle", json={
+                "task_id": morning_task.id, "completion_date": TODAY,
+            })
+            assert response.status_code == 200
+
+        for child_id in [None, *child_ids]:
+            params = {} if child_id is None else {"child_id": child_id}
+            daily_response = client.get("/api/summary", params={"date": TODAY, **params})
+            range_response = client.get("/api/summary/range", params={
+                "start_date": TODAY, "end_date": TODAY, **params,
+            })
+            assert daily_response.status_code == range_response.status_code == 200
+            daily = daily_response.json()
+            day = range_response.json()["days"][0]
+            capacity = max(child_count + int(unassigned), 1) if child_id is None else 1
+            morning_count = child_count + int(unassigned) if child_id is None else 1
+            evening_count = child_count if child_id is None else 1
+
+            assert daily["morning"] == {
+                "total_carrots": morning_task.carrot_value * capacity,
+                "earned_carrots": morning_task.carrot_value * morning_count,
+                "total_count": capacity,
+                "completed_count": morning_count,
+            }
+            assert daily["evening"] == {
+                "total_carrots": evening_task.carrot_value * capacity,
+                "earned_carrots": evening_task.carrot_value * evening_count,
+                "total_count": capacity,
+                "completed_count": evening_count,
+            }
+            assert daily["total_carrots"] == day["total_carrots"] == 3 * capacity
+            assert daily["earned_carrots"] == day["earned_carrots"] == morning_count + 2 * evening_count
+            assert day["morning_earned_carrots"] == daily["morning"]["earned_carrots"]
+            assert day["evening_earned_carrots"] == daily["evening"]["earned_carrots"]
+            assert day["earned_carrots"] <= day["total_carrots"]
+
     def test_summary_all_zero_before_completions(self, client, morning_task, evening_task):
         res = client.get(f"/api/summary?date={TODAY}")
         assert res.status_code == 200
