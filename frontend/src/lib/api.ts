@@ -1,4 +1,4 @@
-import type { Child, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -60,6 +60,11 @@ export function updateChild(id: number, data: ChildUpdate): Promise<Child> {
 /** Delete a child and their completions, resolving to undefined on HTTP 204; a missing child rejects with HTTP 404. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */
 export function deleteChild(id: number): Promise<void> {
   return req(`/api/children/${id}`, { method: "DELETE" });
+}
+
+/** Return a child's carrot balance and its dollar equivalent at the configured conversion rate; a missing child rejects with HTTP 404. */
+export function fetchBalance(childId: number): Promise<ChildBalance> {
+  return req(`/api/children/${childId}/balance`);
 }
 
 /** Return completions of active tasks for a YYYY-MM-DD date, optionally filtered by nonempty routine; omitted childId selects only completions with no child. Rejects HTTP errors with status and response text; propagates network, response-reading, and JSON parsing failures. */

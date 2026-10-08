@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RoutineView } from "@/components/RoutineView";
-import type { Child, Task, ToggleResult } from "@/lib/types";
+import type { Child, ChildBalance, Task, ToggleResult } from "@/lib/types";
 
 vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
@@ -23,6 +23,7 @@ vi.mock("@/lib/api", () => ({
   fetchCompletions: vi.fn(),
   toggleCompletion: vi.fn(),
   fetchChildren: vi.fn().mockResolvedValue([]),
+  fetchBalance: vi.fn(),
 }));
 
 import * as api from "@/lib/api";
@@ -66,6 +67,9 @@ describe("RoutineView", () => {
       action: "created",
       completion: { id: 1, task_id: 1, child_id: null, completion_date: "2026-09-25", completed_at: "" },
     } as ToggleResult);
+    vi.mocked(api.fetchBalance).mockResolvedValue({
+      child_id: 1, current_balance: 0, lifetime_earned: 0, lifetime_redeemed: 0, dollar_value: 0,
+    } as ChildBalance);
   });
 
   it.each(["", "invalid", "2026-2-03", "2026-02-30", "2025-02-29", "2026-13-01", "2026-00-10", "2026-03-00", "0000-01-01", "2026-03-10T00:00:00", "2026-03-11"])(
@@ -253,6 +257,34 @@ describe("RoutineView", () => {
     await screen.findByText("Brush teeth");
     await userEvent.click(screen.getByText("Brush teeth"));
     expect(api.toggleCompletion).toHaveBeenLastCalledWith(1, "2026-03-09", 2);
+  });
+
+  it("shows the selected child's carrot balance and refreshes it after a toggle", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchBalance).mockResolvedValue({
+      child_id: 1, current_balance: 12, lifetime_earned: 12, lifetime_redeemed: 0, dollar_value: 0.8,
+    } as ChildBalance);
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Select a child to start");
+    expect(screen.queryByText(/saved/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Alice/ }));
+    await screen.findByText("Brush teeth");
+    expect(api.fetchBalance).toHaveBeenCalledWith(1);
+    expect(await screen.findByText(/12 🥕 saved = \$0\.80/)).toBeInTheDocument();
+
+    vi.mocked(api.fetchBalance).mockResolvedValue({
+      child_id: 1, current_balance: 13, lifetime_earned: 13, lifetime_redeemed: 0, dollar_value: 0.87,
+    } as ChildBalance);
+    await userEvent.click(screen.getByText("Brush teeth"));
+    expect(await screen.findByText(/13 🥕 saved = \$0\.87/)).toBeInTheDocument();
+  });
+
+  it("does not show a carrot balance in household view with no child selected", async () => {
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    expect(api.fetchBalance).not.toHaveBeenCalled();
+    expect(screen.queryByText(/saved/)).not.toBeInTheDocument();
   });
 
   it("renders evening heading for evening routine", async () => {

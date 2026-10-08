@@ -443,6 +443,23 @@ class TestChildrenAPI:
         res = client.get(f"/api/children/{child_id}/balance")
         assert res.json()["dollar_value"] == 0.0
 
+    def test_toggle_completion_updates_visible_balance(self, client, morning_task):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.put("/api/settings", json={"carrots_per_dollar": 1})
+
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": child_id,
+        })
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.json()["current_balance"] == morning_task.carrot_value
+        assert res.json()["dollar_value"] == morning_task.carrot_value
+
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": child_id,
+        })
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.json()["current_balance"] == 0
+
     def test_list_children_returns_all(self, client):
         client.post("/api/children", json={"name": "Alice"})
         client.post("/api/children", json={"name": "Bob"})
