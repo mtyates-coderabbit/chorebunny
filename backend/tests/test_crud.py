@@ -52,6 +52,42 @@ class TestToggleCompletion:
         completions = crud.get_completions(db, completion_date=TODAY)
         assert len(completions) == 2
 
+    def test_completing_credits_child_balance(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+
+        balance = crud.get_balance(db, child.id)
+        assert balance.current_balance == morning_task.carrot_value
+        assert balance.lifetime_earned == morning_task.carrot_value
+
+    def test_uncompleting_debits_child_balance(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+
+        balance = crud.get_balance(db, child.id)
+        assert balance.current_balance == 0
+        assert balance.lifetime_earned == morning_task.carrot_value
+
+    def test_uncompleting_never_takes_balance_negative(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.get_or_create_balance(db, child.id).current_balance = 0
+        db.commit()
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+        # Someone spent carrots elsewhere between credit and un-toggle; balance is already low.
+        balance_row = crud.get_or_create_balance(db, child.id)
+        balance_row.current_balance = 0
+        db.commit()
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+
+        assert crud.get_balance(db, child.id).current_balance == 0
+
+    def test_completion_without_child_does_not_touch_any_balance(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY)
+
+        assert crud.get_balance(db, child.id).current_balance == 0
+
 
 class TestDailySummary:
     def test_zero_carrots_when_nothing_done(self, db, morning_task, evening_task):
