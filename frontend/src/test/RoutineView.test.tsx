@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -97,6 +97,27 @@ describe("RoutineView", () => {
     expect(navigation.router.push).toHaveBeenLastCalledWith(`/${routine}?date=2024-02-28`);
     await userEvent.click(screen.getByRole("button", { name: "Next day" }));
     expect(navigation.router.push).toHaveBeenLastCalledWith(`/${routine}?date=2024-03-01`);
+  });
+
+  it("opens the native date picker from the date label, capped at today", async () => {
+    navigation.searchParams.delete("date");
+    const showPicker = vi.fn();
+    HTMLInputElement.prototype.showPicker = showPicker;
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    await userEvent.click(screen.getByRole("button", { name: "Choose date" }));
+    expect(showPicker).toHaveBeenCalledOnce();
+    const input = document.querySelector<HTMLInputElement>('input[type="date"]')!;
+    expect(input.max).toBe(input.value);
+  });
+
+  it("navigates to the date chosen in the picker", async () => {
+    navigation.searchParams.delete("date");
+    render(<RoutineView routine="evening" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = document.querySelector<HTMLInputElement>('input[type="date"]')!;
+    fireEvent.change(input, { target: { value: "2024-02-20" } });
+    expect(navigation.router.push).toHaveBeenLastCalledWith("/evening?date=2024-02-20");
   });
 
   it("can celebrate the final task after navigating to another date", async () => {
@@ -259,6 +280,6 @@ describe("RoutineView", () => {
     vi.mocked(api.fetchTasks).mockResolvedValue([]);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
     render(<RoutineView routine="evening" />, { wrapper: wrapper() });
-    await screen.findByText(/evening routine/i);
+    expect(await screen.findByRole("heading", { name: /evening routine/i })).toBeInTheDocument();
   });
 });
