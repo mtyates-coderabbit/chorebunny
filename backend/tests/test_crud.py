@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select, text
 
 from app import crud, schemas
-from app.models import Child, Task, TaskChildAssignment
+from app.models import Child, ChildBalance, Task, TaskChildAssignment
 
 
 TODAY = date.today()
@@ -51,6 +51,42 @@ class TestToggleCompletion:
         assert result.action == "created"
         completions = crud.get_completions(db, completion_date=TODAY)
         assert len(completions) == 2
+
+    def test_completing_credits_child_balance(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+
+        balance = crud.get_balance(db, child.id)
+        assert balance.current_balance == morning_task.carrot_value
+        assert balance.lifetime_earned == morning_task.carrot_value
+
+    def test_uncompleting_debits_child_balance(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+
+        balance = crud.get_balance(db, child.id)
+        assert balance.current_balance == 0
+        assert balance.lifetime_earned == morning_task.carrot_value
+
+    def test_uncompleting_never_takes_balance_negative(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.get_or_create_balance(db, child.id).current_balance = 0
+        db.commit()
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+        # Someone spent carrots elsewhere between credit and un-toggle; balance is already low.
+        balance_row = crud.get_or_create_balance(db, child.id)
+        balance_row.current_balance = 0
+        db.commit()
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+
+        assert crud.get_balance(db, child.id).current_balance == 0
+
+    def test_completion_without_child_does_not_touch_any_balance(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY)
+
+        assert crud.get_balance(db, child.id).current_balance == 0
 
 
 class TestDailySummary:
@@ -342,3 +378,42 @@ class TestChildCRUD:
         assert db.get(Task, morning_id) is not None
         assert db.get(Task, evening_id) is not None
         assert db.get(Child, bob_id) is not None
+
+
+class TestChildBalance:
+    def test_balance_starts_at_zero(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        balance = crud.get_balance(db, child.id)
+        assert balance.current_balance == 0
+        assert balance.lifetime_earned == 0
+        assert balance.lifetime_redeemed == 0
+        assert balance.dollar_value == 0.0
+
+    def test_balance_nonexistent_child_returns_none(self, db):
+        assert crud.get_balance(db, 9999) is None
+
+    def test_balance_uses_configured_conversion_rate(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.update_settings(db, schemas.SettingsUpdate(carrots_per_dollar=10))
+        balance = crud.get_or_create_balance(db, child.id)
+        balance.current_balance = 25
+        db.commit()
+
+        result = crud.get_balance(db, child.id)
+        assert result.dollar_value == 2.5
+
+    def test_get_or_create_balance_is_idempotent(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        first = crud.get_or_create_balance(db, child.id)
+        first.current_balance = 5
+        db.commit()
+
+        second = crud.get_or_create_balance(db, child.id)
+        assert second.child_id == first.child_id
+        assert second.current_balance == 5
+
+    def test_delete_child_cascades_balance(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.get_or_create_balance(db, child.id)
+        crud.delete_child(db, child.id)
+        assert db.get(ChildBalance, child.id) is None
