@@ -12,6 +12,7 @@ def get_settings(db: Session) -> schemas.Settings:
     rows = {r.key: r.value for r in db.scalars(select(models.Setting))}
     return schemas.Settings(
         morning_cutoff_hour=int(rows.get("morning_cutoff_hour", 12)),
+        carrots_per_dollar=int(rows.get("carrots_per_dollar", 15)),
     )
 
 
@@ -61,6 +62,34 @@ def delete_child(db: Session, child_id: int) -> bool:
     db.delete(child)
     db.commit()
     return True
+
+
+def get_or_create_balance(db: Session, child_id: int) -> models.ChildBalance | None:
+    """Return the child's balance row, creating a zeroed one on first access; None if the child doesn't exist."""
+    if db.get(models.Child, child_id) is None:
+        return None
+    balance = db.get(models.ChildBalance, child_id)
+    if balance is None:
+        balance = models.ChildBalance(child_id=child_id)
+        db.add(balance)
+        db.commit()
+        db.refresh(balance)
+    return balance
+
+
+def get_balance(db: Session, child_id: int) -> schemas.ChildBalance | None:
+    """Return the child's carrot balance and its dollar equivalent at the configured conversion rate; None if the child doesn't exist."""
+    balance = get_or_create_balance(db, child_id)
+    if balance is None:
+        return None
+    rate = get_settings(db).carrots_per_dollar
+    return schemas.ChildBalance(
+        child_id=balance.child_id,
+        current_balance=balance.current_balance,
+        lifetime_earned=balance.lifetime_earned,
+        lifetime_redeemed=balance.lifetime_redeemed,
+        dollar_value=round(balance.current_balance / rate, 2),
+    )
 
 
 def get_tasks(

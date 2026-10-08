@@ -362,6 +362,19 @@ class TestSettingsAPI:
         res = client.put("/api/settings", json={})
         assert res.json()["morning_cutoff_hour"] == 9
 
+    def test_get_settings_returns_default_conversion_rate(self, client):
+        res = client.get("/api/settings")
+        assert res.json()["carrots_per_dollar"] == 15
+
+    def test_put_settings_updates_conversion_rate(self, client):
+        res = client.put("/api/settings", json={"carrots_per_dollar": 20})
+        assert res.status_code == 200
+        assert res.json()["carrots_per_dollar"] == 20
+
+    def test_put_settings_rejects_non_positive_conversion_rate(self, client):
+        assert client.put("/api/settings", json={"carrots_per_dollar": 0}).status_code == 422
+        assert client.put("/api/settings", json={"carrots_per_dollar": -5}).status_code == 422
+
 
 class TestStreaksAPI:
     def test_streaks_empty(self, client):
@@ -407,6 +420,28 @@ class TestChildrenAPI:
         data = res.json()
         assert data["avatar"] == "🐻"
         assert data["color"] == "#7DD3FC"
+
+    def test_get_balance_starts_at_zero(self, client):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.status_code == 200
+        assert res.json() == {
+            "child_id": child_id,
+            "current_balance": 0,
+            "lifetime_earned": 0,
+            "lifetime_redeemed": 0,
+            "dollar_value": 0.0,
+        }
+
+    def test_get_balance_nonexistent_child_returns_404(self, client):
+        res = client.get("/api/children/9999/balance")
+        assert res.status_code == 404
+
+    def test_get_balance_reflects_configured_conversion_rate(self, client):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.put("/api/settings", json={"carrots_per_dollar": 10})
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.json()["dollar_value"] == 0.0
 
     def test_list_children_returns_all(self, client):
         client.post("/api/children", json={"name": "Alice"})

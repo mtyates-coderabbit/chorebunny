@@ -6,7 +6,7 @@ import pytest
 from sqlalchemy import select, text
 
 from app import crud, schemas
-from app.models import Child, Task, TaskChildAssignment
+from app.models import Child, ChildBalance, Task, TaskChildAssignment
 
 
 TODAY = date.today()
@@ -342,3 +342,42 @@ class TestChildCRUD:
         assert db.get(Task, morning_id) is not None
         assert db.get(Task, evening_id) is not None
         assert db.get(Child, bob_id) is not None
+
+
+class TestChildBalance:
+    def test_balance_starts_at_zero(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        balance = crud.get_balance(db, child.id)
+        assert balance.current_balance == 0
+        assert balance.lifetime_earned == 0
+        assert balance.lifetime_redeemed == 0
+        assert balance.dollar_value == 0.0
+
+    def test_balance_nonexistent_child_returns_none(self, db):
+        assert crud.get_balance(db, 9999) is None
+
+    def test_balance_uses_configured_conversion_rate(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.update_settings(db, schemas.SettingsUpdate(carrots_per_dollar=10))
+        balance = crud.get_or_create_balance(db, child.id)
+        balance.current_balance = 25
+        db.commit()
+
+        result = crud.get_balance(db, child.id)
+        assert result.dollar_value == 2.5
+
+    def test_get_or_create_balance_is_idempotent(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        first = crud.get_or_create_balance(db, child.id)
+        first.current_balance = 5
+        db.commit()
+
+        second = crud.get_or_create_balance(db, child.id)
+        assert second.child_id == first.child_id
+        assert second.current_balance == 5
+
+    def test_delete_child_cascades_balance(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.get_or_create_balance(db, child.id)
+        crud.delete_child(db, child.id)
+        assert db.get(ChildBalance, child.id) is None

@@ -160,9 +160,21 @@ class Settings(BaseModel):
     """Application-wide settings returned from the API."""
 
     morning_cutoff_hour: int = Field(default=12, ge=0, le=23)
+    carrots_per_dollar: int = Field(default=15, ge=1)
+
+
+class ChildBalance(BaseModel):
+    """A child's running carrot balance and its dollar equivalent at the configured conversion rate."""
+
+    child_id: int
+    current_balance: int
+    lifetime_earned: int
+    lifetime_redeemed: int
+    dollar_value: float
 
 
 class SettingsUpdate(BaseModel):
     """Partial settings update; omitted fields are unchanged."""
 
     morning_cutoff_hour: int | None = Field(default=None, ge=0, le=23)
+    carrots_per_dollar: int | None = Field(default=None, ge=1)
