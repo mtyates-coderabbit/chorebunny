@@ -19,7 +19,8 @@ def test_completion_lists_and_summary_use_child_scope(client, db, morning_task, 
     child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
     child_completion = crud.toggle_completion(db, morning_task.id, TODAY, child.id).completion
     assert client.get("/api/completions", params={"date": TODAY}).json() == []
-    assert client.get("/api/summary", params={"date": TODAY}).json()["earned_carrots"] == 0
+    assert client.get("/api/summary", params={"date": TODAY}).json()["earned_carrots"] == morning_task.carrot_value
+    assert client.get("/api/summary", params={"date": TODAY, "child_id": child.id}).json()["earned_carrots"] == morning_task.carrot_value
 
     unscoped = crud.toggle_completion(db, evening_task.id, TODAY).completion
     response = client.get("/api/completions", params={"date": TODAY})
@@ -73,9 +74,12 @@ def test_unique_race_returns_existing_completion(db, db_engine, morning_task, sc
     assert len(db.scalars(select(TaskCompletion)).all()) == 1
 
 
-def test_unrelated_integrity_error_is_not_reported_as_created(db):
+def test_unrelated_integrity_error_is_not_reported_as_created(db, morning_task):
+    # A missing task_id/child_id is now rejected before the insert is attempted (see
+    # test_missing_child_returns_404_without_inserting), so force a genuinely unrelated
+    # IntegrityError via a NOT NULL violation on completion_date instead.
     with pytest.raises(IntegrityError):
-        crud.toggle_completion(db, None, TODAY)
+        crud.toggle_completion(db, morning_task.id, None)
     assert db.scalars(select(TaskCompletion)).all() == []
 
 

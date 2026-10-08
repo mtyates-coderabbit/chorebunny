@@ -1,7 +1,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class ChildCreate(BaseModel):
@@ -49,6 +49,14 @@ class TaskUpdate(BaseModel):
     estimated_minutes: int | None = Field(default=None, ge=1, le=180)
     is_active: bool | None = None
     sort_order: int | None = None
+
+    @field_validator("name", "routine", "carrot_value", "is_active", "sort_order")
+    @classmethod
+    def _reject_explicit_null(cls: type["TaskUpdate"], v: str | int | bool | None) -> str | int | bool:
+        """Reject an explicit null for fields that are non-nullable on the Task model; omitted fields are unaffected."""
+        if v is None:
+            raise ValueError("must not be null")
+        return v
 
 
 class TaskReorder(BaseModel):

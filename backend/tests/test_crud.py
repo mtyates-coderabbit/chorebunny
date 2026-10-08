@@ -138,6 +138,34 @@ class TestGetTasks:
 
 
 class TestRangeSummary:
+    def test_unassigned_capacity_ignores_inactive_tasks_and_other_dates(self, db, morning_task):
+        crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        hidden = Task(name="Hidden", routine="morning", carrot_value=5, is_active=False)
+        db.add(hidden)
+        db.commit()
+        crud.toggle_completion(db, hidden.id, TODAY)
+        crud.toggle_completion(db, morning_task.id, TODAY - timedelta(days=1))
+
+        day = crud.get_range_summary(db, TODAY, TODAY).days[0]
+        daily = crud.get_daily_summary(db, TODAY)
+
+        assert day.earned_carrots == daily.earned_carrots == 0
+        assert day.total_carrots == daily.total_carrots == morning_task.carrot_value
+
+    def test_unassigned_capacity_is_scoped_to_its_own_date(self, db, morning_task):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        crud.toggle_completion(db, morning_task.id, TODAY, child_id=child.id)
+        crud.toggle_completion(db, morning_task.id, TODAY)
+
+        summary = crud.get_range_summary(db, TODAY, TODAY + timedelta(days=1))
+
+        assert [day.earned_carrots for day in summary.days] == [2, 0]
+        # TODAY has an unassigned completion, so it gets 1 child + 1 unassigned slot (total 2);
+        # TODAY+1 has no completions at all, so it only gets the 1 child's slot (total 1) —
+        # the unassigned slot must not leak onto a date that didn't earn it.
+        assert [day.total_carrots for day in summary.days] == [2, 1]
+        assert summary.task_stats[0].count == 2
+
     @pytest.mark.parametrize("end", [date(2026, 1, 1), date.max])
     def test_inclusive_range_keeps_last_day(self, db, morning_task, end):
         from datetime import timedelta

@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, timedelta
 
 import pytest
 
@@ -85,6 +85,17 @@ class TestTasksAPI:
         res = client.put("/api/tasks/9999", json={"name": "Ghost"})
         assert res.status_code == 404
 
+    @pytest.mark.parametrize("field,value", [
+        ("name", None), ("routine", None), ("carrot_value", None),
+        ("is_active", None), ("sort_order", None),
+    ])
+    def test_update_task_rejects_explicit_null_for_required_fields(self, client, field, value):
+        create = client.post("/api/tasks", json={"name": "Brush teeth", "routine": "morning", "carrot_value": 1})
+        task_id = create.json()["id"]
+
+        res = client.put(f"/api/tasks/{task_id}", json={field: value})
+        assert res.status_code == 422
+
     def test_delete_task(self, client):
         create = client.post("/api/tasks", json={"name": "Doomed", "routine": "morning", "carrot_value": 1})
         task_id = create.json()["id"]
@@ -125,6 +136,12 @@ class TestCompletionsAPI:
         assert len(res.json()) == 1
         assert res.json()[0]["task_id"] == morning_task.id
 
+    def test_toggle_nonexistent_task_returns_404(self, client, db):
+        res = client.post("/api/completions/toggle", json={"task_id": 9999, "completion_date": TODAY})
+        assert res.status_code == 404
+        assert res.json()["detail"] == "Task not found"
+        assert db.query(TaskCompletion).count() == 0
+
     def test_list_completions_filtered_by_routine(self, client, morning_task, evening_task):
         client.post("/api/completions/toggle", json={"task_id": morning_task.id, "completion_date": TODAY})
         client.post("/api/completions/toggle", json={"task_id": evening_task.id, "completion_date": TODAY})
@@ -135,6 +152,146 @@ class TestCompletionsAPI:
 
 
 class TestSummaryAPI:
+    @pytest.mark.parametrize("scope", [None, 0, 1, 2])
+    @pytest.mark.parametrize("unassigned", [False, True])
+    def test_assignment_aware_daily_and_range_totals(
+        self, client, morning_task, evening_task, scope, unassigned
+    ):
+        child_ids = [
+            client.post("/api/children", json={"name": name}).json()["id"]
+            for name in ("Alice", "Bob", "Charlie")
+        ]
+        personal_task = client.post("/api/tasks", json={
+            "name": "Feed pet", "routine": "morning", "carrot_value": 3,
+        }).json()
+        for task_id, assignees in (
+            (morning_task.id, child_ids),
+            (evening_task.id, child_ids[:2]),
+            (personal_task["id"], child_ids[:1]),
+        ):
+            if task_id != morning_task.id:
+                response = client.put(f"/api/tasks/{task_id}/assignments", json={"child_ids": assignees})
+                assert response.status_code == 200
+            for child_id in assignees:
+                response = client.post("/api/completions/toggle", json={
+                    "task_id": task_id, "completion_date": TODAY, "child_id": child_id,
+                })
+                assert response.status_code == 200
+        if unassigned:
+            response = client.post("/api/completions/toggle", json={
+                "task_id": personal_task["id"], "completion_date": TODAY,
+            })
+            assert response.status_code == 200
+
+        params = {} if scope is None else {"child_id": child_ids[scope]}
+        # Global morning task, personal morning task, shared evening task.
+        capacities = {None: (3, 1, 2), 0: (1, 1, 1), 1: (1, 0, 1), 2: (1, 0, 0)}[scope]
+        extra = int(unassigned and scope is None)
+        daily_response = client.get("/api/summary", params={"date": TODAY, **params})
+        range_response = client.get("/api/summary/range", params={
+            "start_date": TODAY, "end_date": date.fromisoformat(TODAY) + timedelta(days=1), **params,
+        })
+        assert daily_response.status_code == range_response.status_code == 200
+        daily = daily_response.json()
+        summary = range_response.json()
+        global_count, personal_count, shared_count = capacities
+        total = global_count + 3 * personal_count + 2 * shared_count
+        assert daily["morning"] == {
+            "total_carrots": global_count + 3 * personal_count + 4 * extra,
+            "earned_carrots": global_count + 3 * personal_count + 3 * extra,
+            "total_count": global_count + personal_count + 2 * extra,
+            "completed_count": global_count + personal_count + extra,
+        }
+        assert daily["evening"] == {
+            "total_carrots": 2 * (shared_count + extra),
+            "earned_carrots": 2 * shared_count,
+            "total_count": shared_count + extra,
+            "completed_count": shared_count,
+        }
+        assert daily["total_carrots"] == total + 6 * extra
+        assert daily["earned_carrots"] == total + 3 * extra
+        assert [day["total_carrots"] for day in summary["days"]] == [total + 6 * extra, total]
+        assert [day["earned_carrots"] for day in summary["days"]] == [total + 3 * extra, 0]
+        for routine in ("morning", "evening"):
+            assert summary["days"][0][f"{routine}_earned_carrots"] == daily[routine]["earned_carrots"]
+        expected_stats = {
+            task_id: count + (extra if task_id == personal_task["id"] else 0)
+            for task_id, count in zip(
+                (morning_task.id, personal_task["id"], evening_task.id), capacities
+            ) if count
+        }
+        assert {stat["task_id"]: stat["count"] for stat in summary["task_stats"]} == expected_stats
+
+    def test_child_summary_excludes_reassigned_tasks_and_their_completions(self, client, morning_task):
+        alice = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        bob = client.post("/api/children", json={"name": "Bob"}).json()["id"]
+        response = client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice,
+        })
+        assert response.status_code == 200
+        response = client.put(f"/api/tasks/{morning_task.id}/assignments", json={"child_ids": [bob]})
+        assert response.status_code == 200
+        daily = client.get("/api/summary", params={"date": TODAY, "child_id": alice}).json()
+        summary = client.get("/api/summary/range", params={
+            "start_date": TODAY, "end_date": TODAY, "child_id": alice,
+        }).json()
+        assert daily["total_carrots"] == daily["earned_carrots"] == 0
+        assert daily["morning"]["total_count"] == daily["morning"]["completed_count"] == 0
+        assert summary["days"][0]["total_carrots"] == summary["days"][0]["earned_carrots"] == 0
+        assert summary["task_stats"] == []
+
+    @pytest.mark.parametrize("child_count", [0, 1, 2])
+    @pytest.mark.parametrize("unassigned", [False, True])
+    def test_household_daily_and_range_totals_agree(
+        self, client, morning_task, evening_task, child_count, unassigned
+    ):
+        child_ids = [
+            client.post("/api/children", json={"name": f"Child {i}"}).json()["id"]
+            for i in range(child_count)
+        ]
+        for child_id in child_ids:
+            for task in (morning_task, evening_task):
+                response = client.post("/api/completions/toggle", json={
+                    "task_id": task.id, "completion_date": TODAY, "child_id": child_id,
+                })
+                assert response.status_code == 200
+        if unassigned:
+            response = client.post("/api/completions/toggle", json={
+                "task_id": morning_task.id, "completion_date": TODAY,
+            })
+            assert response.status_code == 200
+
+        for child_id in [None, *child_ids]:
+            params = {} if child_id is None else {"child_id": child_id}
+            daily_response = client.get("/api/summary", params={"date": TODAY, **params})
+            range_response = client.get("/api/summary/range", params={
+                "start_date": TODAY, "end_date": TODAY, **params,
+            })
+            assert daily_response.status_code == range_response.status_code == 200
+            daily = daily_response.json()
+            day = range_response.json()["days"][0]
+            capacity = max(child_count + int(unassigned), 1) if child_id is None else 1
+            morning_count = child_count + int(unassigned) if child_id is None else 1
+            evening_count = child_count if child_id is None else 1
+
+            assert daily["morning"] == {
+                "total_carrots": morning_task.carrot_value * capacity,
+                "earned_carrots": morning_task.carrot_value * morning_count,
+                "total_count": capacity,
+                "completed_count": morning_count,
+            }
+            assert daily["evening"] == {
+                "total_carrots": evening_task.carrot_value * capacity,
+                "earned_carrots": evening_task.carrot_value * evening_count,
+                "total_count": capacity,
+                "completed_count": evening_count,
+            }
+            assert daily["total_carrots"] == day["total_carrots"] == 3 * capacity
+            assert daily["earned_carrots"] == day["earned_carrots"] == morning_count + 2 * evening_count
+            assert day["morning_earned_carrots"] == daily["morning"]["earned_carrots"]
+            assert day["evening_earned_carrots"] == daily["evening"]["earned_carrots"]
+            assert day["earned_carrots"] <= day["total_carrots"]
+
     def test_summary_all_zero_before_completions(self, client, morning_task, evening_task):
         res = client.get(f"/api/summary?date={TODAY}")
         assert res.status_code == 200
@@ -150,6 +307,30 @@ class TestSummaryAPI:
         data = res.json()
         assert data["morning"]["earned_carrots"] == morning_task.carrot_value
         assert data["morning"]["completed_count"] == 1
+
+    def test_summary_reflects_completions_from_any_child(self, client, morning_task):
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": child_id,
+        })
+
+        res = client.get(f"/api/summary?date={TODAY}")
+        data = res.json()
+        assert data["morning"]["earned_carrots"] == morning_task.carrot_value
+        assert data["morning"]["completed_count"] == 1
+
+    def test_summary_child_id_scopes_to_that_child(self, client, morning_task):
+        alice_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        bob_id = client.post("/api/children", json={"name": "Bob"}).json()["id"]
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice_id,
+        })
+
+        res = client.get(f"/api/summary?date={TODAY}&child_id={bob_id}")
+        assert res.json()["morning"]["earned_carrots"] == 0
+
+        res = client.get(f"/api/summary?date={TODAY}&child_id={alice_id}")
+        assert res.json()["morning"]["earned_carrots"] == morning_task.carrot_value
 
     def test_health_endpoint(self, client):
         res = client.get("/health")
@@ -331,6 +512,36 @@ class TestRangeSummaryAPI:
         assert days[-1]["date"] == end
         assert days[-1]["morning_earned_carrots"] == 0
         assert days[-1]["evening_earned_carrots"] == 0
+
+    def test_household_total_scales_with_number_of_children(self, client, morning_task):
+        alice_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        bob_id = client.post("/api/children", json={"name": "Bob"}).json()["id"]
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice_id,
+        })
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": bob_id,
+        })
+
+        res = client.get("/api/summary/range", params={"start_date": TODAY, "end_date": TODAY})
+        day = res.json()["days"][0]
+        assert day["total_carrots"] == morning_task.carrot_value * 2
+        assert day["earned_carrots"] == morning_task.carrot_value * 2
+        assert day["earned_carrots"] <= day["total_carrots"]
+
+    def test_single_child_total_unaffected_by_other_children(self, client, morning_task):
+        alice_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.post("/api/children", json={"name": "Bob"})
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice_id,
+        })
+
+        res = client.get("/api/summary/range", params={
+            "start_date": TODAY, "end_date": TODAY, "child_id": alice_id,
+        })
+        day = res.json()["days"][0]
+        assert day["total_carrots"] == morning_task.carrot_value
+        assert day["earned_carrots"] == morning_task.carrot_value
 
 
 class TestTaskAssignmentsAPI:
