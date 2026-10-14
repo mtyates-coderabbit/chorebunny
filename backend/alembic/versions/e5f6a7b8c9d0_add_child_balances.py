@@ -14,6 +14,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    """Create per-child carrot balances with zero defaults and cascading child deletion."""
     op.execute("""
         CREATE TABLE child_balances (
             child_id          INTEGER NOT NULL REFERENCES children(id) ON DELETE CASCADE,
@@ -26,4 +27,5 @@ def upgrade() -> None:
 
 
 def downgrade() -> None:
+    """Remove the child balances table and all stored carrot totals."""
     op.execute("DROP TABLE child_balances")
