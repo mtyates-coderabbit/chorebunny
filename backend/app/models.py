@@ -44,6 +44,22 @@ class Child(Base):
     assignments: Mapped[list["TaskChildAssignment"]] = relationship(
         "TaskChildAssignment", back_populates="child", cascade="all, delete-orphan"
     )
+    balance: Mapped["ChildBalance | None"] = relationship(
+        "ChildBalance", back_populates="child", cascade="all, delete-orphan", uselist=False
+    )
+
+
+class ChildBalance(Base):
+    """A child's running carrot balance; one row per child, created lazily on first access."""
+
+    __tablename__ = "child_balances"
+
+    child_id: Mapped[int] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), primary_key=True)
+    lifetime_earned: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    lifetime_redeemed: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    current_balance: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+
+    child: Mapped["Child"] = relationship("Child", back_populates="balance")
 
 
 class Task(Base):

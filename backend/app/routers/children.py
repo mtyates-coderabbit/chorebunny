@@ -35,3 +35,12 @@ def delete_child(child_id: int, db: Session = Depends(get_db)) -> None:
     """Delete a child profile and cascade-delete all their completions; raise HTTPException(404) if the child is missing."""
     if not crud.delete_child(db, child_id):
         raise HTTPException(status_code=404, detail="Child not found")
+
+
+@router.get("/{child_id}/balance", response_model=schemas.ChildBalance)
+def get_balance(child_id: int, db: Session = Depends(get_db)) -> schemas.ChildBalance:
+    """Return the child's carrot balance and its dollar equivalent; raise HTTPException(404) if the child is missing."""
+    balance = crud.get_balance(db, child_id)
+    if balance is None:
+        raise HTTPException(status_code=404, detail="Child not found")
+    return balance

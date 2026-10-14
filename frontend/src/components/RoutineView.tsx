@@ -4,6 +4,7 @@ import { useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatLocalDate } from "@/lib/dates";
 import Link from "next/link";
+import { useBalance } from "@/hooks/useBalance";
 import { useChildren } from "@/hooks/useChildren";
 import { useCompletions } from "@/hooks/useCompletions";
 import { useTasks } from "@/hooks/useTasks";
@@ -61,6 +62,7 @@ export function RoutineView({ routine }: Props) {
     canShowProgress
   );
   const toggle = useToggleCompletion(date, activeChildId ?? undefined);
+  const { data: balance } = useBalance(activeChildId ?? undefined);
 
   const completedIds = new Set(completions.map((c) => c.task_id));
   const completedCount = tasks.filter((t) => completedIds.has(t.id)).length;
@@ -181,6 +183,11 @@ export function RoutineView({ routine }: Props) {
         <div className="px-5 py-2 flex flex-col items-center">
           <RabbitMascot percent={percent} routine={routine} />
           <CarrotCounter earned={earnedCarrots} total={totalCarrots} />
+          {activeChildId !== null && balance && (
+            <p className="mt-1 text-sm font-semibold" style={{ color: "#C4956A" }}>
+              🏦 {balance.current_balance} 🥕 saved = ${balance.dollar_value.toFixed(2)}
+            </p>
+          )}
         </div>
       )}
 
