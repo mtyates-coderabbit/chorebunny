@@ -161,7 +161,7 @@ def test_same_completion_race_adjusts_balance_once(concurrent_engine, undo):
         assert len(db.scalars(select(models.TaskCompletion)).all()) == (0 if undo else 1)
 
 
-def test_award_migration_backfills_and_preserves_balance(tmp_path, monkeypatch):
+def test_award_migration_preserves_legacy_balance(tmp_path, monkeypatch):
     url = f"sqlite:///{tmp_path / 'migration.db'}"
     monkeypatch.setattr(settings, "database_url", url)
     config = Config("alembic.ini")
@@ -180,11 +180,11 @@ def test_award_migration_backfills_and_preserves_balance(tmp_path, monkeypatch):
         connection.exec_driver_sql("INSERT INTO child_balances VALUES (1, 8, 2, 6)")
     command.upgrade(config, "head")
     with Session(engine) as db:
-        assert db.scalar(select(models.TaskCompletion)).awarded_carrots == 3
+        assert db.scalar(select(models.TaskCompletion)).awarded_carrots == 0
         crud.update_task(db, 1, schemas.TaskUpdate(carrot_value=5))
         crud.toggle_completion(db, 1, TODAY, 1)
         balance = db.get(models.ChildBalance, 1)
-        assert (balance.current_balance, balance.lifetime_earned, balance.lifetime_redeemed) == (3, 8, 2)
+        assert (balance.current_balance, balance.lifetime_earned, balance.lifetime_redeemed) == (6, 8, 2)
     command.downgrade(config, "e5f6a7b8c9d0")
     command.upgrade(config, "head")
     engine.dispose()

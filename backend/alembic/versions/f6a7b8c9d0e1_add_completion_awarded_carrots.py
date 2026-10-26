@@ -14,17 +14,11 @@ depends_on = None
 
 
 def upgrade() -> None:
-    """Snapshot legacy completions using current task values, the only available history."""
+    """Store completion awards while leaving legacy completions unawarded."""
     op.add_column(
         "task_completions",
         sa.Column("awarded_carrots", sa.Integer(), nullable=False, server_default="0"),
     )
-    op.execute("""
-        UPDATE task_completions
-        SET awarded_carrots = (
-            SELECT carrot_value FROM tasks WHERE tasks.id = task_completions.task_id
-        )
-    """)
 
 
 def downgrade() -> None:
