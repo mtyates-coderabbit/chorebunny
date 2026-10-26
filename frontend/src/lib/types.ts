@@ -103,3 +103,11 @@ export interface RangeSummary {
   days: DayCarrots[];
   task_stats: TaskStat[];
 }
+
+export interface ChildBalance {
+  child_id: number;
+  current_balance: number;
+  lifetime_earned: number;
+  lifetime_redeemed: number;
+  dollar_value: number;
+}

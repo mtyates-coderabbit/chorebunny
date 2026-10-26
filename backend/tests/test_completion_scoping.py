@@ -61,12 +61,12 @@ def test_child_update_rejects_null_and_preserves_omitted_fields(client, field):
 def test_unique_race_returns_existing_completion(db, db_engine, morning_task, scoped):
     child_id = crud.create_child(db, schemas.ChildCreate(name="Alice")).id if scoped else None
 
-    def insert_competing_completion(session):
+    def insert_competing_completion(session, flush_context, instances):
         with Session(db_engine) as competing:
             competing.add(TaskCompletion(task_id=morning_task.id, completion_date=TODAY, child_id=child_id))
             competing.commit()
 
-    event.listen(db, "before_commit", insert_competing_completion, once=True)
+    event.listen(db, "before_flush", insert_competing_completion, once=True)
     result = crud.toggle_completion(db, morning_task.id, TODAY, child_id)
     assert result.action == "created"
     assert result.completion is not None

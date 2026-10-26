@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
@@ -12,6 +13,7 @@ def get_settings(db: Session) -> schemas.Settings:
     rows = {r.key: r.value for r in db.scalars(select(models.Setting))}
     return schemas.Settings(
         morning_cutoff_hour=int(rows.get("morning_cutoff_hour", 12)),
+        carrots_per_dollar=int(rows.get("carrots_per_dollar", 15)),
     )
 
 
@@ -61,6 +63,43 @@ def delete_child(db: Session, child_id: int) -> bool:
     db.delete(child)
     db.commit()
     return True
+
+
+def _ensure_balance(db: Session, child_id: int) -> None:
+    """Ensure a zeroed balance exists without committing the caller's transaction."""
+    db.execute(
+        insert(models.ChildBalance)
+        .values(child_id=child_id)
+        .on_conflict_do_nothing(index_elements=[models.ChildBalance.child_id])
+    )
+
+
+def get_or_create_balance(db: Session, child_id: int) -> models.ChildBalance | None:
+    """Return the persisted balance, creating a zeroed row on first access; None for a missing child."""
+    if db.get(models.Child, child_id) is None:
+        return None
+    try:
+        _ensure_balance(db, child_id)
+        db.commit()
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return db.get(models.ChildBalance, child_id, populate_existing=True)
+
+
+def get_balance(db: Session, child_id: int) -> schemas.ChildBalance | None:
+    """Return the child's carrot balance and its dollar equivalent at the configured conversion rate; None if the child doesn't exist."""
+    balance = get_or_create_balance(db, child_id)
+    if balance is None:
+        return None
+    rate = get_settings(db).carrots_per_dollar
+    return schemas.ChildBalance(
+        child_id=balance.child_id,
+        current_balance=balance.current_balance,
+        lifetime_earned=balance.lifetime_earned,
+        lifetime_redeemed=balance.lifetime_redeemed,
+        dollar_value=round(balance.current_balance / rate, 2),
+    )
 
 
 def get_tasks(
@@ -185,11 +224,39 @@ def task_exists(db: Session, task_id: int) -> bool:
     return db.get(models.Task, task_id) is not None
 
 
+def _credit_balance(db: Session, child_id: int | None, carrot_value: int) -> None:
+    """Add carrot_value to the child's lifetime_earned and current_balance; no-op without a child."""
+    if child_id is None:
+        return
+    _ensure_balance(db, child_id)
+    db.execute(
+        update(models.ChildBalance)
+        .where(models.ChildBalance.child_id == child_id)
+        .values(
+            lifetime_earned=models.ChildBalance.lifetime_earned + carrot_value,
+            current_balance=models.ChildBalance.current_balance + carrot_value,
+        )
+    )
+
+
+def _debit_balance(db: Session, child_id: int | None, carrot_value: int) -> None:
+    """Subtract carrots with a zero floor in the caller's transaction; no-op without a child."""
+    if child_id is None:
+        return
+    _ensure_balance(db, child_id)
+    db.execute(
+        update(models.ChildBalance)
+        .where(models.ChildBalance.child_id == child_id)
+        .values(current_balance=func.max(models.ChildBalance.current_balance - carrot_value, 0))
+    )
+
+
 def toggle_completion(
     db: Session, task_id: int, completion_date: date, child_id: int | None = None
 ) -> schemas.ToggleResult | None:
-    """Persist a toggle for the task/date and child (None selects no child); return deleted with no completion or created with the new or concurrently inserted completion, or None for a missing task or child; propagate IntegrityError when insertion fails with no matching completion and no missing task/child, and other database errors."""
-    if not task_exists(db, task_id):
+    """Persist a toggle for the task/date and child (None selects no child), crediting or debiting that child's carrot balance; return deleted with no completion or created with the new or concurrently inserted completion, or None for a missing task or child; propagate IntegrityError when insertion fails with no matching completion and no missing task/child, and other database errors."""
+    task = db.get(models.Task, task_id)
+    if task is None:
         return None
     if child_id is not None and db.get(models.Child, child_id) is None:
         return None
@@ -202,13 +269,29 @@ def toggle_completion(
         )
     )
     if existing:
-        db.delete(existing)
-        db.commit()
+        awarded_carrots = existing.awarded_carrots
+        try:
+            deleted = db.execute(
+                delete(models.TaskCompletion).where(models.TaskCompletion.id == existing.id)
+            )
+            if deleted.rowcount:
+                _debit_balance(db, child_id, awarded_carrots)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise
         return schemas.ToggleResult(action="deleted", completion=None)
 
-    completion = models.TaskCompletion(task_id=task_id, completion_date=completion_date, child_id=child_id)
+    completion = models.TaskCompletion(
+        task_id=task_id,
+        completion_date=completion_date,
+        child_id=child_id,
+        awarded_carrots=task.carrot_value,
+    )
     db.add(completion)
     try:
+        db.flush()
+        _credit_balance(db, child_id, completion.awarded_carrots)
         db.commit()
         db.refresh(completion)
         return schemas.ToggleResult(
@@ -232,6 +315,9 @@ def toggle_completion(
             action="created",
             completion=schemas.Completion.model_validate(existing),
         )
+    except SQLAlchemyError:
+        db.rollback()
+        raise
 
 
 def get_range_summary(db: Session, start_date: date, end_date: date, child_id: int | None = None) -> schemas.RangeSummary:

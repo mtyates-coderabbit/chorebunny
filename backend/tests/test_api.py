@@ -339,6 +339,8 @@ class TestSummaryAPI:
 
 
 class TestSettingsAPI:
+    """Verify settings defaults, partial updates, and API validation."""
+
     def test_get_settings_returns_defaults(self, client):
         """Return a noon cutoff when no setting has been persisted."""
         res = client.get("/api/settings")
@@ -361,6 +363,22 @@ class TestSettingsAPI:
         client.put("/api/settings", json={"morning_cutoff_hour": 9})
         res = client.put("/api/settings", json={})
         assert res.json()["morning_cutoff_hour"] == 9
+
+    def test_get_settings_returns_default_conversion_rate(self, client):
+        """Verify an unset conversion rate defaults to 15 carrots per dollar."""
+        res = client.get("/api/settings")
+        assert res.json()["carrots_per_dollar"] == 15
+
+    def test_put_settings_updates_conversion_rate(self, client):
+        """Verify a valid conversion rate is returned by the settings update endpoint."""
+        res = client.put("/api/settings", json={"carrots_per_dollar": 20})
+        assert res.status_code == 200
+        assert res.json()["carrots_per_dollar"] == 20
+
+    def test_put_settings_rejects_non_positive_conversion_rate(self, client):
+        """Verify zero and negative conversion rates are rejected with HTTP 422."""
+        assert client.put("/api/settings", json={"carrots_per_dollar": 0}).status_code == 422
+        assert client.put("/api/settings", json={"carrots_per_dollar": -5}).status_code == 422
 
 
 class TestStreaksAPI:
@@ -387,6 +405,8 @@ class TestStreaksAPI:
 
 
 class TestChildrenAPI:
+    """Verify child profile endpoints, child-scoped completions, and carrot balances."""
+
     def test_list_children_empty(self, client):
         res = client.get("/api/children")
         assert res.status_code == 200
@@ -407,6 +427,49 @@ class TestChildrenAPI:
         data = res.json()
         assert data["avatar"] == "🐻"
         assert data["color"] == "#7DD3FC"
+
+    def test_get_balance_starts_at_zero(self, client):
+        """Verify a new child's balance endpoint returns zero totals and dollar value."""
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.status_code == 200
+        assert res.json() == {
+            "child_id": child_id,
+            "current_balance": 0,
+            "lifetime_earned": 0,
+            "lifetime_redeemed": 0,
+            "dollar_value": 0.0,
+        }
+
+    def test_get_balance_nonexistent_child_returns_404(self, client):
+        """Verify requesting a balance for an unknown child returns HTTP 404."""
+        res = client.get("/api/children/9999/balance")
+        assert res.status_code == 404
+
+    def test_get_balance_reflects_configured_conversion_rate(self, client):
+        """Verify a zero balance remains worth zero dollars after changing the conversion rate."""
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.put("/api/settings", json={"carrots_per_dollar": 10})
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.json()["dollar_value"] == 0.0
+
+    def test_toggle_completion_updates_visible_balance(self, client, morning_task):
+        """Verify completing and undoing a task updates the balance exposed by the API."""
+        child_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        client.put("/api/settings", json={"carrots_per_dollar": 1})
+
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": child_id,
+        })
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.json()["current_balance"] == morning_task.carrot_value
+        assert res.json()["dollar_value"] == morning_task.carrot_value
+
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": child_id,
+        })
+        res = client.get(f"/api/children/{child_id}/balance")
+        assert res.json()["current_balance"] == 0
 
     def test_list_children_returns_all(self, client):
         client.post("/api/children", json={"name": "Alice"})
