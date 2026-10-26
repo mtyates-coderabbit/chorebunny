@@ -62,6 +62,43 @@ class ChildBalance(Base):
     child: Mapped["Child"] = relationship("Child", back_populates="balance")
 
 
+class Reward(Base):
+    """A parent-defined reward children can redeem for carrots."""
+
+    __tablename__ = "rewards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    carrot_cost: Mapped[int] = mapped_column(Integer, nullable=False)
+    is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+
+class RedemptionRequest(Base):
+    """A child's request for a reward; name and cost are snapshotted so history survives reward edits and deletion."""
+
+    __tablename__ = "redemption_requests"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    child_id: Mapped[int] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=False)
+    reward_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("rewards.id", ondelete="SET NULL"), nullable=True)
+    reward_name: Mapped[str] = mapped_column(String, nullable=False)
+    carrot_cost: Mapped[int] = mapped_column(Integer, nullable=False)
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending")
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+    resolved_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
+
+    __table_args__ = (
+        Index(
+            "uq_redemption_requests_one_pending",
+            "child_id",
+            "reward_id",
+            unique=True,
+            sqlite_where=status == "pending",
+        ),
+    )
+
+
 class Task(Base):
     __tablename__ = "tasks"
 

@@ -24,6 +24,9 @@ vi.mock("@/lib/api", () => ({
   toggleCompletion: vi.fn(),
   fetchChildren: vi.fn().mockResolvedValue([]),
   fetchBalance: vi.fn(),
+  fetchRewards: vi.fn().mockResolvedValue([]),
+  fetchRedemptions: vi.fn().mockResolvedValue([]),
+  requestRedemption: vi.fn(),
 }));
 
 import * as api from "@/lib/api";
@@ -61,6 +64,8 @@ describe("RoutineView", () => {
     vi.resetAllMocks();
     navigation.searchParams = new URLSearchParams();
     vi.mocked(api.fetchChildren).mockResolvedValue([]);
+    vi.mocked(api.fetchRewards).mockResolvedValue([]);
+    vi.mocked(api.fetchRedemptions).mockResolvedValue([]);
     vi.mocked(api.fetchTasks).mockResolvedValue(MORNING_TASKS);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
     vi.mocked(api.toggleCompletion).mockResolvedValue({

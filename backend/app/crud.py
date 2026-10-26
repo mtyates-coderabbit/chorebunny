@@ -1,4 +1,4 @@
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.sqlite import insert
@@ -100,6 +100,125 @@ def get_balance(db: Session, child_id: int) -> schemas.ChildBalance | None:
         lifetime_redeemed=balance.lifetime_redeemed,
         dollar_value=round(balance.current_balance / rate, 2),
     )
+
+
+def get_rewards(db: Session, active_only: bool = False) -> list[models.Reward]:
+    """Return rewards ordered by carrot cost, optionally only active ones."""
+    q = select(models.Reward)
+    if active_only:
+        q = q.where(models.Reward.is_active == True)  # noqa: E712
+    return list(db.scalars(q.order_by(models.Reward.carrot_cost, models.Reward.id)))
+
+
+def create_reward(db: Session, data: schemas.RewardCreate) -> models.Reward:
+    """Create and persist a reward."""
+    reward = models.Reward(**data.model_dump())
+    db.add(reward)
+    db.commit()
+    db.refresh(reward)
+    return reward
+
+
+def update_reward(db: Session, reward_id: int, data: schemas.RewardUpdate) -> models.Reward | None:
+    """Apply partial updates to a reward; returns None if not found."""
+    reward = db.get(models.Reward, reward_id)
+    if not reward:
+        return None
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(reward, field, value)
+    db.commit()
+    db.refresh(reward)
+    return reward
+
+
+def delete_reward(db: Session, reward_id: int) -> bool:
+    """Delete a reward, detaching it from existing redemption requests so their history is kept; returns False if not found."""
+    reward = db.get(models.Reward, reward_id)
+    if not reward:
+        return False
+    db.execute(
+        update(models.RedemptionRequest)
+        .where(models.RedemptionRequest.reward_id == reward_id)
+        .values(reward_id=None)
+    )
+    db.delete(reward)
+    db.commit()
+    return True
+
+
+def create_redemption_request(
+    db: Session, child_id: int, reward_id: int
+) -> models.RedemptionRequest | str:
+    """Create a pending request without deducting carrots; returns an error code ('child_not_found', 'reward_not_found', 'reward_inactive', 'insufficient_balance', 'already_pending') on failure."""
+    balance = get_or_create_balance(db, child_id)
+    if balance is None:
+        return "child_not_found"
+    reward = db.get(models.Reward, reward_id)
+    if reward is None:
+        return "reward_not_found"
+    if not reward.is_active:
+        return "reward_inactive"
+    if reward.carrot_cost > balance.current_balance:
+        return "insufficient_balance"
+    request = models.RedemptionRequest(
+        child_id=child_id, reward_id=reward.id, reward_name=reward.name, carrot_cost=reward.carrot_cost
+    )
+    db.add(request)
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        return "already_pending"
+    db.refresh(request)
+    return request
+
+
+def get_redemption_requests(
+    db: Session, child_id: int | None = None, status: str | None = None
+) -> list[models.RedemptionRequest]:
+    """Return redemption requests oldest first, optionally filtered by child and status."""
+    q = select(models.RedemptionRequest)
+    if child_id is not None:
+        q = q.where(models.RedemptionRequest.child_id == child_id)
+    if status is not None:
+        q = q.where(models.RedemptionRequest.status == status)
+    return list(db.scalars(q.order_by(models.RedemptionRequest.created_at, models.RedemptionRequest.id)))
+
+
+def resolve_redemption_request(
+    db: Session, request_id: int, approve: bool
+) -> models.RedemptionRequest | str:
+    """Approve (deducting the snapshotted cost) or deny a pending request; returns an error code ('not_found', 'not_pending', 'insufficient_balance') on failure."""
+    request = db.get(models.RedemptionRequest, request_id)
+    if request is None:
+        return "not_found"
+    get_or_create_balance(db, request.child_id)
+    claimed = db.execute(
+        update(models.RedemptionRequest)
+        .where(models.RedemptionRequest.id == request_id, models.RedemptionRequest.status == "pending")
+        .values(status="approved" if approve else "denied", resolved_at=datetime.utcnow())
+    )
+    if claimed.rowcount == 0:
+        db.rollback()
+        return "not_pending"
+    if approve:
+        debited = db.execute(
+            update(models.ChildBalance)
+            .where(
+                models.ChildBalance.child_id == request.child_id,
+                models.ChildBalance.current_balance >= request.carrot_cost,
+            )
+            .values(
+                current_balance=models.ChildBalance.current_balance - request.carrot_cost,
+                lifetime_redeemed=models.ChildBalance.lifetime_redeemed + request.carrot_cost,
+            )
+        )
+        if debited.rowcount == 0:
+            db.rollback()
+            return "insufficient_balance"
+    db.commit()
+    db.refresh(request)
+    return request
 
 
 def get_tasks(

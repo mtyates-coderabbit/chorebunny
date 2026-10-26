@@ -1,4 +1,4 @@
-import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -96,4 +96,44 @@ export function fetchRangeSummary(startDate: string, endDate: string, childId?: 
   const params = new URLSearchParams({ start_date: startDate, end_date: endDate });
   if (childId !== undefined) params.set("child_id", String(childId));
   return req(`/api/summary/range?${params}`);
+}
+
+/** Return rewards cheapest first; pass activeOnly for the child-facing catalog. */
+export function fetchRewards(activeOnly = false): Promise<Reward[]> {
+  return req(`/api/rewards?active_only=${activeOnly}`);
+}
+
+export function createReward(data: RewardCreate): Promise<Reward> {
+  return req("/api/rewards", { method: "POST", body: JSON.stringify(data) });
+}
+
+export function updateReward(id: number, data: RewardUpdate): Promise<Reward> {
+  return req(`/api/rewards/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+export function deleteReward(id: number): Promise<void> {
+  return req(`/api/rewards/${id}`, { method: "DELETE" });
+}
+
+/** Return redemption requests oldest first, optionally filtered by child and status. */
+export function fetchRedemptions(childId?: number, status?: RedemptionStatus): Promise<RedemptionRequest[]> {
+  const params = new URLSearchParams();
+  if (childId !== undefined) params.set("child_id", String(childId));
+  if (status) params.set("status", status);
+  return req(`/api/redemptions?${params}`);
+}
+
+/** Request a reward for a child; rejects with HTTP 409 if it is inactive or costs more than the balance. */
+export function requestRedemption(childId: number, rewardId: number): Promise<RedemptionRequest> {
+  return req("/api/redemptions", { method: "POST", body: JSON.stringify({ child_id: childId, reward_id: rewardId }) });
+}
+
+/** Approve a pending request, deducting its cost; rejects with HTTP 409 if already resolved or unaffordable. */
+export function approveRedemption(id: number): Promise<RedemptionRequest> {
+  return req(`/api/redemptions/${id}/approve`, { method: "POST" });
+}
+
+/** Deny a pending request without deducting carrots. */
+export function denyRedemption(id: number): Promise<RedemptionRequest> {
+  return req(`/api/redemptions/${id}/deny`, { method: "POST" });
 }

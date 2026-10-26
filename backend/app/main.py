@@ -8,6 +8,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.dependencies import validate_api_key, verify_api_key
 from app.routers.children import router as children_router
 from app.routers.completions import router as completions_router
+from app.routers.redemptions import router as redemptions_router
+from app.routers.rewards import router as rewards_router
 from app.routers.settings import router as settings_router
 from app.routers.tasks import router as tasks_router
 
@@ -35,6 +37,8 @@ app.add_middleware(
 app.include_router(tasks_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(completions_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(children_router, prefix="/api", dependencies=[Depends(verify_api_key)])
+app.include_router(rewards_router, prefix="/api", dependencies=[Depends(verify_api_key)])
+app.include_router(redemptions_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(settings_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 
 

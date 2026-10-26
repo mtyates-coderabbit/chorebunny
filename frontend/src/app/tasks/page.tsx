@@ -1,6 +1,8 @@
 import Link from "next/link";
 import { ChildManager } from "@/components/ChildManager";
 import { ChoreBunnyLogo } from "@/components/ChoreBunnyLogo";
+import { RedemptionQueue } from "@/components/RedemptionQueue";
+import { RewardManager } from "@/components/RewardManager";
 import { TaskManager } from "@/components/TaskManager";
 
 /** Render task management with links to routines and metrics. */
@@ -25,6 +27,8 @@ export default function TasksPage() {
         </div>
       </div>
       <ChildManager />
+      <RedemptionQueue />
+      <RewardManager />
       <TaskManager />
     </div>
   );
