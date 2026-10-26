@@ -105,7 +105,7 @@ describe("RoutineView", () => {
     HTMLInputElement.prototype.showPicker = showPicker;
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
-    await userEvent.click(screen.getByRole("button", { name: "Choose date" }));
+    await userEvent.click(screen.getByRole("button", { name: "Today · 0/2 done Choose date" }));
     expect(showPicker).toHaveBeenCalledOnce();
     const input = document.querySelector<HTMLInputElement>('input[type="date"]')!;
     expect(input.max).toBe(input.value);

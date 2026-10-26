@@ -140,7 +140,6 @@ export function RoutineView({ routine }: Props) {
           <div className="relative">
             <button
               onClick={() => dateInputRef.current?.showPicker()}
-              aria-label="Choose date"
               className="text-sm font-medium rounded-xl px-2 py-1 hover:bg-orange-50"
               style={{ color: "#C4956A" }}
             >
@@ -148,6 +147,7 @@ export function RoutineView({ routine }: Props) {
                 ? "Today"
                 : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date + "T00:00:00"))}
               {canShowProgress && ` · ${completedCount}/${totalCount} done`}
+              {" "}<span className="sr-only">Choose date</span>
             </button>
             <input
               ref={dateInputRef}
