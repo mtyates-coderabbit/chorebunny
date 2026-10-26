@@ -1,6 +1,7 @@
 from datetime import date, timedelta
 
-from sqlalchemy import delete, exists, select
+from sqlalchemy import delete, exists, func, select, update
+from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
@@ -64,17 +65,26 @@ def delete_child(db: Session, child_id: int) -> bool:
     return True
 
 
+def _ensure_balance(db: Session, child_id: int) -> None:
+    """Ensure a zeroed balance exists without committing the caller's transaction."""
+    db.execute(
+        insert(models.ChildBalance)
+        .values(child_id=child_id)
+        .on_conflict_do_nothing(index_elements=[models.ChildBalance.child_id])
+    )
+
+
 def get_or_create_balance(db: Session, child_id: int) -> models.ChildBalance | None:
-    """Return the child's balance row, creating a zeroed one on first access; None if the child doesn't exist."""
+    """Return the persisted balance, creating a zeroed row on first access; None for a missing child."""
     if db.get(models.Child, child_id) is None:
         return None
-    balance = db.get(models.ChildBalance, child_id)
-    if balance is None:
-        balance = models.ChildBalance(child_id=child_id)
-        db.add(balance)
+    try:
+        _ensure_balance(db, child_id)
         db.commit()
-        db.refresh(balance)
-    return balance
+    except SQLAlchemyError:
+        db.rollback()
+        raise
+    return db.get(models.ChildBalance, child_id, populate_existing=True)
 
 
 def get_balance(db: Session, child_id: int) -> schemas.ChildBalance | None:
@@ -218,19 +228,27 @@ def _credit_balance(db: Session, child_id: int | None, carrot_value: int) -> Non
     """Add carrot_value to the child's lifetime_earned and current_balance; no-op without a child."""
     if child_id is None:
         return
-    balance = get_or_create_balance(db, child_id)
-    balance.lifetime_earned += carrot_value
-    balance.current_balance += carrot_value
-    db.commit()
+    _ensure_balance(db, child_id)
+    db.execute(
+        update(models.ChildBalance)
+        .where(models.ChildBalance.child_id == child_id)
+        .values(
+            lifetime_earned=models.ChildBalance.lifetime_earned + carrot_value,
+            current_balance=models.ChildBalance.current_balance + carrot_value,
+        )
+    )
 
 
 def _debit_balance(db: Session, child_id: int | None, carrot_value: int) -> None:
-    """Subtract carrot_value from the child's current_balance, never going below zero; no-op without a child."""
+    """Subtract carrots with a zero floor in the caller's transaction; no-op without a child."""
     if child_id is None:
         return
-    balance = get_or_create_balance(db, child_id)
-    balance.current_balance = max(balance.current_balance - carrot_value, 0)
-    db.commit()
+    _ensure_balance(db, child_id)
+    db.execute(
+        update(models.ChildBalance)
+        .where(models.ChildBalance.child_id == child_id)
+        .values(current_balance=func.max(models.ChildBalance.current_balance - carrot_value, 0))
+    )
 
 
 def toggle_completion(
@@ -251,17 +269,31 @@ def toggle_completion(
         )
     )
     if existing:
-        db.delete(existing)
-        db.commit()
-        _debit_balance(db, child_id, task.carrot_value)
+        awarded_carrots = existing.awarded_carrots
+        try:
+            deleted = db.execute(
+                delete(models.TaskCompletion).where(models.TaskCompletion.id == existing.id)
+            )
+            if deleted.rowcount:
+                _debit_balance(db, child_id, awarded_carrots)
+            db.commit()
+        except SQLAlchemyError:
+            db.rollback()
+            raise
         return schemas.ToggleResult(action="deleted", completion=None)
 
-    completion = models.TaskCompletion(task_id=task_id, completion_date=completion_date, child_id=child_id)
+    completion = models.TaskCompletion(
+        task_id=task_id,
+        completion_date=completion_date,
+        child_id=child_id,
+        awarded_carrots=task.carrot_value,
+    )
     db.add(completion)
     try:
+        db.flush()
+        _credit_balance(db, child_id, completion.awarded_carrots)
         db.commit()
         db.refresh(completion)
-        _credit_balance(db, child_id, task.carrot_value)
         return schemas.ToggleResult(
             action="created",
             completion=schemas.Completion.model_validate(completion),
@@ -283,6 +315,9 @@ def toggle_completion(
             action="created",
             completion=schemas.Completion.model_validate(existing),
         )
+    except SQLAlchemyError:
+        db.rollback()
+        raise
 
 
 def get_range_summary(db: Session, start_date: date, end_date: date, child_id: int | None = None) -> schemas.RangeSummary:

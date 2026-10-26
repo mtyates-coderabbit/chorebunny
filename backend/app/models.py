@@ -97,6 +97,7 @@ class TaskCompletion(Base):
     task_id: Mapped[int] = mapped_column(Integer, ForeignKey("tasks.id"), nullable=False)
     child_id: Mapped[int | None] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=True)
     completion_date: Mapped[date] = mapped_column(Date, nullable=False)
+    awarded_carrots: Mapped[int] = mapped_column(Integer, nullable=False, default=0, server_default="0")
     completed_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
 
     task: Mapped["Task"] = relationship("Task", back_populates="completions")
