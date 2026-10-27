@@ -234,7 +234,7 @@ export function RoutineView({ routine }: Props) {
         )}
       </main>
 
-      {canShowProgress && activeChildId !== null && <RewardsPanel childId={activeChildId} />}
+      {canShowProgress && activeChildId !== null && <RewardsPanel key={activeChildId} childId={activeChildId} />}
     </div>
   );
 }

@@ -292,6 +292,42 @@ describe("RoutineView", () => {
     expect(screen.queryByText(/saved/)).not.toBeInTheDocument();
   });
 
+  it.each(["failed", "pending"])("resets a child's %s reward request when switching children", async (state) => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchRewards).mockResolvedValue([
+      { id: 1, name: "Ice cream", carrot_cost: 10, is_active: true, created_at: "" },
+    ]);
+    vi.mocked(api.fetchBalance).mockImplementation(async (childId) => ({
+      child_id: childId, current_balance: 50, lifetime_earned: 50, lifetime_redeemed: 0, dollar_value: 0,
+    }));
+    const result = Promise.withResolvers<Awaited<ReturnType<typeof api.requestRedemption>>>();
+    if (state === "failed") vi.mocked(api.requestRedemption).mockRejectedValueOnce(new Error("Request failed"));
+    else vi.mocked(api.requestRedemption).mockReturnValueOnce(result.promise);
+    vi.mocked(api.requestRedemption).mockResolvedValue({
+      id: 1, child_id: 2, reward_id: 1, reward_name: "Ice cream", carrot_cost: 10,
+      status: "pending", created_at: "", resolved_at: null,
+    });
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    const ask = await screen.findByRole("button", { name: "Ask for Ice cream" });
+    await waitFor(() => expect(ask).toBeEnabled());
+    await userEvent.click(ask);
+    expect(api.requestRedemption).toHaveBeenCalledWith(1, 1);
+    if (state === "failed") await screen.findByRole("alert");
+    else await waitFor(() => expect(ask).toBeDisabled());
+
+    await userEvent.click(screen.getByRole("button", { name: /Bob/ }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    const nextAsk = screen.getByRole("button", { name: "Ask for Ice cream" });
+    await waitFor(() => expect(nextAsk).toBeEnabled());
+    if (state === "pending") {
+      await act(async () => result.reject(new Error("Alice's request failed")));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    }
+    await userEvent.click(nextAsk);
+    expect(api.requestRedemption).toHaveBeenLastCalledWith(2, 1);
+  });
+
   it("renders evening heading for evening routine", async () => {
     vi.mocked(api.fetchTasks).mockResolvedValue([]);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);

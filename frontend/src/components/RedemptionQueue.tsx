@@ -9,7 +9,9 @@ export function RedemptionQueue() {
   const { data: pending = [], isLoading } = useRedemptions(undefined, "pending");
   const { approve, deny } = useResolveRedemption();
 
-  if (isLoading || pending.length === 0) return null;
+  const hasError = approve.isError || deny.isError;
+
+  if (!hasError && (isLoading || pending.length === 0)) return null;
 
   const busy = approve.isPending || deny.isPending;
 
@@ -34,14 +36,20 @@ export function RedemptionQueue() {
                     </div>
                     <button
                       disabled={busy}
-                      onClick={() => approve.mutate(request.id)}
+                      onClick={() => {
+                        deny.reset();
+                        approve.mutate(request.id);
+                      }}
                       className="bg-green-400 text-white font-bold text-sm rounded-xl px-3 py-1.5 disabled:opacity-50"
                     >
                       Approve
                     </button>
                     <button
                       disabled={busy}
-                      onClick={() => deny.mutate(request.id)}
+                      onClick={() => {
+                        approve.reset();
+                        deny.mutate(request.id);
+                      }}
                       className="text-sm text-gray-500 rounded-xl px-3 py-1.5 border border-gray-200 disabled:opacity-50"
                     >
                       Deny
@@ -51,7 +59,7 @@ export function RedemptionQueue() {
             </ul>
           </div>
         ))}
-      {(approve.isError || deny.isError) && (
+      {hasError && (
         <p role="alert" className="text-sm text-red-500">
           Couldn&apos;t update that request — it may already be resolved or the balance is too low.
         </p>

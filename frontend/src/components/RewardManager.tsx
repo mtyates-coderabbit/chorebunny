@@ -17,8 +17,15 @@ export function RewardManager() {
   const [form, setForm] = useState({ name: "", carrot_cost: "" });
   const [editing, setEditing] = useState<EditState | null>(null);
 
+  const resetErrors = () => {
+    if (create.isError) create.reset();
+    if (update.isError) update.reset();
+    if (remove.isError) remove.reset();
+  };
+
   const handleCreate = (e: React.FormEvent) => {
     e.preventDefault();
+    resetErrors();
     if (!form.name.trim()) return;
     create.mutate(
       { name: form.name, carrot_cost: Number(form.carrot_cost) },
@@ -28,6 +35,7 @@ export function RewardManager() {
 
   const handleUpdate = (e: React.FormEvent) => {
     e.preventDefault();
+    resetErrors();
     if (!editing || !editing.name.trim()) return;
     update.mutate(
       { id: editing.id, data: { name: editing.name, carrot_cost: Number(editing.carrot_cost) } },
@@ -41,7 +49,7 @@ export function RewardManager() {
     <div className="max-w-2xl mx-auto px-6 pt-6 space-y-4">
       <h2 className="text-xl font-extrabold text-gray-800">🎁 Rewards</h2>
 
-      <form onSubmit={handleCreate} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
+      <form onSubmit={handleCreate} onChange={resetErrors} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
         <h3 className="font-bold text-gray-700">Add reward</h3>
         <input
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
@@ -79,7 +87,7 @@ export function RewardManager() {
         {rewards.map((reward) => (
           <li key={reward.id} className="bg-white rounded-2xl p-4 shadow-sm border border-gray-100">
             {editing?.id === reward.id ? (
-              <form onSubmit={handleUpdate} className="space-y-2">
+              <form onSubmit={handleUpdate} onChange={resetErrors} className="space-y-2">
                 <input
                   aria-label="Reward name"
                   className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
@@ -103,7 +111,10 @@ export function RewardManager() {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setEditing(null)}
+                    onClick={() => {
+                      resetErrors();
+                      setEditing(null);
+                    }}
                     className="text-sm text-gray-500 rounded-xl px-3 py-1.5 border border-gray-200"
                   >
                     Cancel
@@ -119,19 +130,28 @@ export function RewardManager() {
                   </p>
                 </div>
                 <button
-                  onClick={() => setEditing({ id: reward.id, name: reward.name, carrot_cost: String(reward.carrot_cost) })}
+                  onClick={() => {
+                    resetErrors();
+                    setEditing({ id: reward.id, name: reward.name, carrot_cost: String(reward.carrot_cost) });
+                  }}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
                   Edit
                 </button>
                 <button
-                  onClick={() => update.mutate({ id: reward.id, data: { is_active: !reward.is_active } })}
+                  onClick={() => {
+                    resetErrors();
+                    update.mutate({ id: reward.id, data: { is_active: !reward.is_active } });
+                  }}
                   className="text-sm text-gray-500 hover:text-gray-700"
                 >
                   {reward.is_active ? "Deactivate" : "Activate"}
                 </button>
                 <button
-                  onClick={() => remove.mutate(reward.id)}
+                  onClick={() => {
+                    resetErrors();
+                    remove.mutate(reward.id);
+                  }}
                   className="text-sm text-red-400 hover:text-red-600"
                 >
                   Delete
