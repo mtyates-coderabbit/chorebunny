@@ -137,9 +137,22 @@ export function RoutineView({ routine }: Props) {
           >
             ‹
           </button>
-          <div className="relative">
+          <div className="flex flex-col items-center gap-1">
             <button
-              onClick={() => dateInputRef.current?.showPicker()}
+              onClick={() => {
+                const input = dateInputRef.current;
+                if (!input) return;
+                try {
+                  if (typeof input.showPicker === "function") {
+                    input.showPicker();
+                    return;
+                  }
+                } catch {
+                  input.focus();
+                  return;
+                }
+                input.focus();
+              }}
               className="text-sm font-medium rounded-xl px-2 py-1 hover:bg-orange-50"
               style={{ color: "#C4956A" }}
             >
@@ -157,9 +170,8 @@ export function RoutineView({ routine }: Props) {
               onChange={(e) => {
                 if (e.target.value) router.push(`/${routine}?date=${e.target.value}`);
               }}
-              tabIndex={-1}
-              aria-hidden="true"
-              className="absolute inset-0 w-full h-full opacity-0 pointer-events-none"
+              aria-label="Choose date"
+              className="rounded-xl border border-orange-100 bg-white px-2 py-1 text-sm text-gray-700"
             />
           </div>
           <button

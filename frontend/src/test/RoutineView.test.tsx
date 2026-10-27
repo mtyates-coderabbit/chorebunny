@@ -102,13 +102,48 @@ describe("RoutineView", () => {
   it("opens the native date picker from the date label, capped at today", async () => {
     navigation.searchParams.delete("date");
     const showPicker = vi.fn();
-    HTMLInputElement.prototype.showPicker = showPicker;
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText<HTMLInputElement>("Choose date");
+    Object.defineProperty(input, "showPicker", { value: showPicker });
     await userEvent.click(screen.getByRole("button", { name: "Today · 0/2 done Choose date" }));
     expect(showPicker).toHaveBeenCalledOnce();
-    const input = document.querySelector<HTMLInputElement>('input[type="date"]')!;
     expect(input.max).toBe(input.value);
+  });
+
+  it.each(["unavailable", "unsupported"])("focuses the usable date input when showPicker is %s", async (support) => {
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText<HTMLInputElement>("Choose date");
+    Object.defineProperty(input, "showPicker", {
+      value: support === "unavailable" ? undefined : () => {
+        throw new DOMException("Picker unavailable", "NotSupportedError");
+      },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Today · 0/2 done Choose date" }));
+    expect(input).toHaveFocus();
+    expect(input).toBeVisible();
+    fireEvent.change(input, { target: { value: "2024-02-20" } });
+    expect(navigation.router.push).toHaveBeenLastCalledWith("/morning?date=2024-02-20");
+  });
+
+  it("allows direct keyboard and touch access to the date input", async () => {
+    const user = userEvent.setup();
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText("Choose date");
+
+    screen.getByRole("button", { name: "Today · 0/2 done Choose date" }).focus();
+    await user.tab();
+    expect(input).toHaveFocus();
+
+    input.blur();
+    await user.pointer([
+      { keys: "[TouchA>]", target: input },
+      { keys: "[/TouchA]" },
+    ]);
+    expect(input).toHaveFocus();
   });
 
   it("navigates to the date chosen in the picker", async () => {
