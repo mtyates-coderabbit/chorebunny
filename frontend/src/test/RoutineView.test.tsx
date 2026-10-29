@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RoutineView } from "@/components/RoutineView";
 import type { Child, ChildBalance, Task, ToggleResult } from "@/lib/types";
+import { deferred } from "./deferred";
 
 vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
@@ -184,7 +185,7 @@ describe("RoutineView", () => {
   });
 
   it("waits for children before showing tasks or fetching completions", async () => {
-    const children = Promise.withResolvers<Child[]>();
+    const children = deferred<Child[]>();
     vi.mocked(api.fetchChildren).mockReturnValue(children.promise);
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
@@ -235,7 +236,7 @@ describe("RoutineView", () => {
       { id: 1, task_id: 1, child_id: null, completion_date: "2026-03-09", completed_at: "" },
     ]);
     vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
-    const completions = Promise.withResolvers<Awaited<ReturnType<typeof api.fetchCompletions>>>();
+    const completions = deferred<Awaited<ReturnType<typeof api.fetchCompletions>>>();
     vi.mocked(api.fetchCompletions).mockReturnValueOnce(completions.promise);
     render(<RoutineView routine="morning" />, { wrapper: wrapper(qc) });
     await screen.findByText("Select a child to start");
@@ -300,7 +301,7 @@ describe("RoutineView", () => {
     vi.mocked(api.fetchBalance).mockImplementation(async (childId) => ({
       child_id: childId, current_balance: 50, lifetime_earned: 50, lifetime_redeemed: 0, dollar_value: 0,
     }));
-    const result = Promise.withResolvers<Awaited<ReturnType<typeof api.requestRedemption>>>();
+    const result = deferred<Awaited<ReturnType<typeof api.requestRedemption>>>();
     if (state === "failed") vi.mocked(api.requestRedemption).mockRejectedValueOnce(new Error("Request failed"));
     else vi.mocked(api.requestRedemption).mockReturnValueOnce(result.promise);
     vi.mocked(api.requestRedemption).mockResolvedValue({

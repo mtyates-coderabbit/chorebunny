@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RewardManager } from "@/components/RewardManager";
 import type { Reward } from "@/lib/types";
+import { deferred } from "./deferred";
 
 vi.mock("@/lib/api", () => ({
   fetchRewards: vi.fn(),
@@ -95,7 +96,7 @@ describe("RewardManager errors", () => {
 
   it("keeps an in-flight create disabled when a field is edited", async () => {
     await renderManager();
-    const result = Promise.withResolvers<Reward>();
+    const result = deferred<Reward>();
     vi.mocked(api.createReward).mockReturnValue(result.promise);
     await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
     await waitFor(() => expect(screen.getByRole("button", { name: "Add reward" })).toBeDisabled());

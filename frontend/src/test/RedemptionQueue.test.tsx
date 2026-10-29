@@ -4,6 +4,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { RedemptionQueue } from "@/components/RedemptionQueue";
 import type { RedemptionRequest } from "@/lib/types";
+import { deferred } from "./deferred";
 
 vi.mock("@/lib/api", () => ({
   fetchChildren: vi.fn(),
@@ -50,7 +51,7 @@ describe("RedemptionQueue errors", () => {
     const failing = action === "Approve" ? api.denyRedemption : api.approveRedemption;
     const succeeding = action === "Approve" ? api.approveRedemption : api.denyRedemption;
     vi.mocked(failing).mockRejectedValue(new Error("Try again"));
-    const result = Promise.withResolvers<RedemptionRequest>();
+    const result = deferred<RedemptionRequest>();
     vi.mocked(succeeding).mockReturnValue(result.promise);
     renderQueue();
     await screen.findByText("Ice cream");
