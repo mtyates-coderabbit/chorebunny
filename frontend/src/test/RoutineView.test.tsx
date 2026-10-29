@@ -146,13 +146,24 @@ describe("RoutineView", () => {
     expect(input).toHaveFocus();
   });
 
-  it("navigates to the date chosen in the picker", async () => {
-    navigation.searchParams.delete("date");
+  it.each([
+    { date: "2026-03-09", shouldNavigate: true },
+    { date: "2026-03-10", shouldNavigate: true },
+    { date: "2026-03-11", shouldNavigate: false },
+    { date: "", shouldNavigate: false },
+  ])("handles picker date '$date' (navigate: $shouldNavigate)", async ({ date, shouldNavigate }) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 2, 10, 12));
+    navigation.searchParams.set("date", "2024-02-20");
     render(<RoutineView routine="evening" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
-    const input = document.querySelector<HTMLInputElement>('input[type="date"]')!;
-    fireEvent.change(input, { target: { value: "2024-02-20" } });
-    expect(navigation.router.push).toHaveBeenLastCalledWith("/evening?date=2024-02-20");
+    const input = screen.getByLabelText<HTMLInputElement>("Choose date");
+    fireEvent.change(input, { target: { value: date } });
+    if (shouldNavigate) {
+      expect(navigation.router.push).toHaveBeenCalledExactlyOnceWith(`/evening?date=${date}`);
+    } else {
+      expect(navigation.router.push).not.toHaveBeenCalled();
+    }
   });
 
   it("can celebrate the final task after navigating to another date", async () => {

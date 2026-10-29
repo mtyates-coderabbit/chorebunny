@@ -168,7 +168,7 @@ export function RoutineView({ routine }: Props) {
               value={date}
               max={today}
               onChange={(e) => {
-                if (e.target.value) router.push(`/${routine}?date=${e.target.value}`);
+                if (e.target.value && e.target.validity.valid) router.push(`/${routine}?date=${e.target.value}`);
               }}
               aria-label="Choose date"
               className="rounded-xl border border-orange-100 bg-white px-2 py-1 text-sm text-gray-700"
