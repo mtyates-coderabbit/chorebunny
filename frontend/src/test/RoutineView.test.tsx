@@ -4,6 +4,7 @@ import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RoutineView } from "@/components/RoutineView";
 import type { Child, ChildBalance, Task, ToggleResult } from "@/lib/types";
+import { deferred } from "./deferred";
 
 vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
 
@@ -24,6 +25,9 @@ vi.mock("@/lib/api", () => ({
   toggleCompletion: vi.fn(),
   fetchChildren: vi.fn().mockResolvedValue([]),
   fetchBalance: vi.fn(),
+  fetchRewards: vi.fn().mockResolvedValue([]),
+  fetchRedemptions: vi.fn().mockResolvedValue([]),
+  requestRedemption: vi.fn(),
 }));
 
 import * as api from "@/lib/api";
@@ -61,6 +65,8 @@ describe("RoutineView", () => {
     vi.resetAllMocks();
     navigation.searchParams = new URLSearchParams();
     vi.mocked(api.fetchChildren).mockResolvedValue([]);
+    vi.mocked(api.fetchRewards).mockResolvedValue([]);
+    vi.mocked(api.fetchRedemptions).mockResolvedValue([]);
     vi.mocked(api.fetchTasks).mockResolvedValue(MORNING_TASKS);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
     vi.mocked(api.toggleCompletion).mockResolvedValue({
@@ -179,7 +185,7 @@ describe("RoutineView", () => {
   });
 
   it("waits for children before showing tasks or fetching completions", async () => {
-    const children = Promise.withResolvers<Child[]>();
+    const children = deferred<Child[]>();
     vi.mocked(api.fetchChildren).mockReturnValue(children.promise);
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await waitFor(() => expect(api.fetchTasks).toHaveBeenCalled());
@@ -230,7 +236,7 @@ describe("RoutineView", () => {
       { id: 1, task_id: 1, child_id: null, completion_date: "2026-03-09", completed_at: "" },
     ]);
     vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
-    const completions = Promise.withResolvers<Awaited<ReturnType<typeof api.fetchCompletions>>>();
+    const completions = deferred<Awaited<ReturnType<typeof api.fetchCompletions>>>();
     vi.mocked(api.fetchCompletions).mockReturnValueOnce(completions.promise);
     render(<RoutineView routine="morning" />, { wrapper: wrapper(qc) });
     await screen.findByText("Select a child to start");
@@ -285,6 +291,42 @@ describe("RoutineView", () => {
     await screen.findByText("Brush teeth");
     expect(api.fetchBalance).not.toHaveBeenCalled();
     expect(screen.queryByText(/saved/)).not.toBeInTheDocument();
+  });
+
+  it.each(["failed", "pending"])("resets a child's %s reward request when switching children", async (state) => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchRewards).mockResolvedValue([
+      { id: 1, name: "Ice cream", carrot_cost: 10, is_active: true, created_at: "" },
+    ]);
+    vi.mocked(api.fetchBalance).mockImplementation(async (childId) => ({
+      child_id: childId, current_balance: 50, lifetime_earned: 50, lifetime_redeemed: 0, dollar_value: 0,
+    }));
+    const result = deferred<Awaited<ReturnType<typeof api.requestRedemption>>>();
+    if (state === "failed") vi.mocked(api.requestRedemption).mockRejectedValueOnce(new Error("Request failed"));
+    else vi.mocked(api.requestRedemption).mockReturnValueOnce(result.promise);
+    vi.mocked(api.requestRedemption).mockResolvedValue({
+      id: 1, child_id: 2, reward_id: 1, reward_name: "Ice cream", carrot_cost: 10,
+      status: "pending", created_at: "", resolved_at: null,
+    });
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    const ask = await screen.findByRole("button", { name: "Ask for Ice cream" });
+    await waitFor(() => expect(ask).toBeEnabled());
+    await userEvent.click(ask);
+    expect(api.requestRedemption).toHaveBeenCalledWith(1, 1);
+    if (state === "failed") await screen.findByRole("alert");
+    else await waitFor(() => expect(ask).toBeDisabled());
+
+    await userEvent.click(screen.getByRole("button", { name: /Bob/ }));
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    const nextAsk = screen.getByRole("button", { name: "Ask for Ice cream" });
+    await waitFor(() => expect(nextAsk).toBeEnabled());
+    if (state === "pending") {
+      await act(async () => result.reject(new Error("Alice's request failed")));
+      expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+    }
+    await userEvent.click(nextAsk);
+    expect(api.requestRedemption).toHaveBeenLastCalledWith(2, 1);
   });
 
   it("renders evening heading for evening routine", async () => {

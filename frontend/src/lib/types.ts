@@ -111,3 +111,36 @@ export interface ChildBalance {
   lifetime_redeemed: number;
   dollar_value: number;
 }
+
+export interface Reward {
+  id: number;
+  name: string;
+  carrot_cost: number;
+  is_active: boolean;
+  created_at: string;
+}
+
+export interface RewardCreate {
+  name: string;
+  carrot_cost: number;
+  is_active?: boolean;
+}
+
+export interface RewardUpdate {
+  name?: string;
+  carrot_cost?: number;
+  is_active?: boolean;
+}
+
+export type RedemptionStatus = "pending" | "approved" | "denied";
+
+export interface RedemptionRequest {
+  id: number;
+  child_id: number;
+  reward_id: number | null;
+  reward_name: string;
+  carrot_cost: number;
+  status: RedemptionStatus;
+  created_at: string;
+  resolved_at: string | null;
+}

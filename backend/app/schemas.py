@@ -178,3 +178,61 @@ class SettingsUpdate(BaseModel):
 
     morning_cutoff_hour: int | None = Field(default=None, ge=0, le=23)
     carrots_per_dollar: int | None = Field(default=None, ge=1)
+
+
+class RewardCreate(BaseModel):
+    """Payload for creating a reward; carrot_cost must be a positive integer."""
+
+    name: str = Field(pattern=r"\S")
+    carrot_cost: int = Field(ge=1)
+    is_active: bool = True
+
+
+class RewardUpdate(BaseModel):
+    """Partial reward update; omitted fields are unchanged."""
+
+    name: str | None = Field(default=None, pattern=r"\S")
+    carrot_cost: int | None = Field(default=None, ge=1)
+    is_active: bool | None = None
+
+    @field_validator("name", "carrot_cost", "is_active")
+    @classmethod
+    def _reject_explicit_null(cls: type["RewardUpdate"], v: str | int | bool | None) -> str | int | bool:
+        """Reject an explicit null for fields that are non-nullable on the Reward model; omitted fields are unaffected."""
+        if v is None:
+            raise ValueError("must not be null")
+        return v
+
+
+class Reward(BaseModel):
+    """Reward returned from the API."""
+
+    id: int
+    name: str
+    carrot_cost: int
+    is_active: bool
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class RedemptionRequestCreate(BaseModel):
+    """Payload for a child requesting a reward."""
+
+    child_id: int
+    reward_id: int
+
+
+class RedemptionRequest(BaseModel):
+    """Redemption request returned from the API; reward_id is None once the reward has been deleted."""
+
+    id: int
+    child_id: int
+    reward_id: int | None
+    reward_name: str
+    carrot_cost: int
+    status: Literal["pending", "approved", "denied"]
+    created_at: datetime
+    resolved_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
