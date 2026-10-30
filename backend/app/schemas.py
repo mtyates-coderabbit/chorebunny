@@ -236,3 +236,41 @@ class RedemptionRequest(BaseModel):
     resolved_at: datetime | None
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class GoalCreate(BaseModel):
+    """Payload for creating a savings goal; target_dollars must be positive."""
+
+    child_id: int
+    name: str = Field(pattern=r"\S")
+    target_dollars: float = Field(gt=0)
+
+
+class GoalUpdate(BaseModel):
+    """Partial goal update; omitted fields are unchanged."""
+
+    name: str | None = Field(default=None, pattern=r"\S")
+    target_dollars: float | None = Field(default=None, gt=0)
+
+    @field_validator("name", "target_dollars")
+    @classmethod
+    def _reject_explicit_null(cls: type["GoalUpdate"], v: str | float | None) -> str | float:
+        """Reject an explicit null for fields that are non-nullable on the Goal model; omitted fields are unaffected."""
+        if v is None:
+            raise ValueError("must not be null")
+        return v
+
+
+class Goal(BaseModel):
+    """Savings goal returned from the API, with progress computed from carrots earned since created_at."""
+
+    id: int
+    child_id: int
+    name: str
+    target_dollars: float
+    earned_dollars: float
+    progress_percent: float
+    created_at: datetime
+    completed_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)

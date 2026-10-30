@@ -1,6 +1,6 @@
 from datetime import date, datetime
 
-from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, Date, DateTime, Float, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -97,6 +97,22 @@ class RedemptionRequest(Base):
             sqlite_where=status == "pending",
         ),
     )
+
+
+class Goal(Base):
+    """A child's savings goal with a dollar target; progress is computed from carrots earned since created_at."""
+
+    __tablename__ = "goals"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    child_id: Mapped[int] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), nullable=False)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    target_dollars: Mapped[float] = mapped_column(Float, nullable=False)
+    # Local time (not utcnow, unlike other created_at columns): created_at.date() is compared
+    # against TaskCompletion.completion_date, which is always a local calendar date, so a UTC
+    # timestamp could land on the wrong side of midnight and misclassify same-day progress.
+    created_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.now)
+    completed_at: Mapped[datetime | None] = mapped_column(DateTime, nullable=True)
 
 
 class Task(Base):

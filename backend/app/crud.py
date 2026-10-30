@@ -221,6 +221,88 @@ def resolve_redemption_request(
     return request
 
 
+def _goal_with_progress(db: Session, goal: models.Goal, rate: int) -> schemas.Goal:
+    """Compute a goal's dollars earned and progress percent from carrots awarded since created_at, capped at 100%."""
+    earned_carrots = db.scalar(
+        select(func.coalesce(func.sum(models.TaskCompletion.awarded_carrots), 0)).where(
+            models.TaskCompletion.child_id == goal.child_id,
+            models.TaskCompletion.completion_date >= goal.created_at.date(),
+        )
+    )
+    earned_dollars = round(earned_carrots / rate, 2)
+    progress_percent = min(round(earned_dollars / goal.target_dollars * 100, 1), 100.0)
+    return schemas.Goal(
+        id=goal.id,
+        child_id=goal.child_id,
+        name=goal.name,
+        target_dollars=goal.target_dollars,
+        earned_dollars=earned_dollars,
+        progress_percent=progress_percent,
+        created_at=goal.created_at,
+        completed_at=goal.completed_at,
+    )
+
+
+def get_goals(db: Session, child_id: int) -> list[schemas.Goal]:
+    """Return a child's goals, active first then completed, each with progress since its creation date."""
+    rows = list(
+        db.scalars(
+            select(models.Goal)
+            .where(models.Goal.child_id == child_id)
+            .order_by(models.Goal.completed_at.is_not(None), models.Goal.created_at)
+        )
+    )
+    rate = get_settings(db).carrots_per_dollar
+    return [_goal_with_progress(db, g, rate) for g in rows]
+
+
+def create_goal(db: Session, data: schemas.GoalCreate) -> schemas.Goal | None:
+    """Create and persist a savings goal; returns None if the child doesn't exist."""
+    if db.get(models.Child, data.child_id) is None:
+        return None
+    goal = models.Goal(child_id=data.child_id, name=data.name, target_dollars=data.target_dollars)
+    db.add(goal)
+    db.commit()
+    db.refresh(goal)
+    rate = get_settings(db).carrots_per_dollar
+    return _goal_with_progress(db, goal, rate)
+
+
+def update_goal(db: Session, goal_id: int, data: schemas.GoalUpdate) -> schemas.Goal | None:
+    """Apply a partial update (name and/or target) to a goal; returns None if not found."""
+    goal = db.get(models.Goal, goal_id)
+    if not goal:
+        return None
+    for field, value in data.model_dump(exclude_unset=True).items():
+        setattr(goal, field, value)
+    db.commit()
+    db.refresh(goal)
+    rate = get_settings(db).carrots_per_dollar
+    return _goal_with_progress(db, goal, rate)
+
+
+def delete_goal(db: Session, goal_id: int) -> bool:
+    """Delete a goal; returns False if not found."""
+    goal = db.get(models.Goal, goal_id)
+    if not goal:
+        return False
+    db.delete(goal)
+    db.commit()
+    return True
+
+
+def complete_goal(db: Session, goal_id: int) -> schemas.Goal | None:
+    """Mark a goal completed now; returns None if not found."""
+    goal = db.get(models.Goal, goal_id)
+    if not goal:
+        return None
+    goal.completed_at = datetime.utcnow()
+    db.commit()
+    db.refresh(goal)
+    rate = get_settings(db).carrots_per_dollar
+    return _goal_with_progress(db, goal, rate)
+
+
 def get_tasks(
     db: Session,
     routine: str | None = None,
