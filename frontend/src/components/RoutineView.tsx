@@ -13,6 +13,7 @@ import { CarrotCounter } from "./CarrotCounter";
 import { CelebrationOverlay } from "./CelebrationOverlay";
 import { ChoreBunnyLogo } from "./ChoreBunnyLogo";
 import { RabbitMascot } from "./RabbitMascot";
+import { GoalsPanel } from "./GoalsPanel";
 import { RewardsPanel } from "./RewardsPanel";
 import { TaskCard } from "./TaskCard";
 
@@ -264,7 +265,8 @@ export function RoutineView({ routine }: Props) {
         )}
       </main>
 
-      {canShowProgress && activeChildId !== null && <RewardsPanel key={activeChildId} childId={activeChildId} />}
+      {canShowProgress && activeChildId !== null && <RewardsPanel key={`rewards-${activeChildId}`} childId={activeChildId} />}
+      {canShowProgress && activeChildId !== null && <GoalsPanel key={`goals-${activeChildId}`} childId={activeChildId} />}
     </div>
   );
 }

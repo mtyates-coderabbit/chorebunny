@@ -1,4 +1,4 @@
-import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, Goal, GoalCreate, GoalUpdate, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -136,4 +136,29 @@ export function approveRedemption(id: number): Promise<RedemptionRequest> {
 /** Deny a pending request without deducting carrots. */
 export function denyRedemption(id: number): Promise<RedemptionRequest> {
   return req(`/api/redemptions/${id}/deny`, { method: "POST" });
+}
+
+/** Return a child's goals, active first then completed. */
+export function fetchGoals(childId: number): Promise<Goal[]> {
+  return req(`/api/goals?child_id=${childId}`);
+}
+
+/** Create a savings goal; rejects with HTTP 404 if the child is missing. */
+export function createGoal(data: GoalCreate): Promise<Goal> {
+  return req("/api/goals", { method: "POST", body: JSON.stringify(data) });
+}
+
+/** Update a goal's name or target; rejects with HTTP 404 if missing. */
+export function updateGoal(id: number, data: GoalUpdate): Promise<Goal> {
+  return req(`/api/goals/${id}`, { method: "PUT", body: JSON.stringify(data) });
+}
+
+/** Delete a goal; rejects with HTTP 404 if missing. */
+export function deleteGoal(id: number): Promise<void> {
+  return req(`/api/goals/${id}`, { method: "DELETE" });
+}
+
+/** Mark a goal completed now; rejects with HTTP 404 if missing. */
+export function completeGoal(id: number): Promise<Goal> {
+  return req(`/api/goals/${id}/complete`, { method: "POST" });
 }
