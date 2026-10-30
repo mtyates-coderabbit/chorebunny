@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { formatLocalDate } from "@/lib/dates";
 import Link from "next/link";
@@ -46,6 +46,7 @@ export function RoutineView({ routine }: Props) {
   const [celebratedDate, setCelebratedDate] = useState<string | null>(null);
   const [showCelebrationDate, setShowCelebrationDate] = useState<string | null>(null);
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
+  const dateInputRef = useRef<HTMLInputElement>(null);
 
   const {
     data: children = [],
@@ -104,36 +105,34 @@ export function RoutineView({ routine }: Props) {
       )}
 
       {/* Header */}
-      <header className="px-5 pt-5 pb-2">
-        <div className="flex items-center justify-between mb-3">
-          <ChoreBunnyLogo size="sm" />
-          <div className="flex gap-2">
-            <Link
-              href={`/${other}?date=${date}`}
-              className="text-sm font-semibold text-orange-400 hover:text-orange-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-orange-100"
-            >
-              {other === "morning" ? "☀️" : "🌙"} {other}
-            </Link>
-            <Link
-              href="/tasks"
-              aria-label="Task settings"
-              className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
-            >
-              ⚙️
-            </Link>
-            <Link
-              href="/metrics"
-              aria-label="Metrics"
-              className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
-            >
-              📊
-            </Link>
-          </div>
+      <header className="px-5 pt-5 pb-2 flex flex-col items-center text-center">
+        <div className="flex gap-2 self-end mb-3">
+          <Link
+            href={`/${other}?date=${date}`}
+            className="text-sm font-semibold text-orange-400 hover:text-orange-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-orange-100"
+          >
+            {other === "morning" ? "☀️" : "🌙"} {other}
+          </Link>
+          <Link
+            href="/tasks"
+            aria-label="Task settings"
+            className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
+          >
+            ⚙️
+          </Link>
+          <Link
+            href="/metrics"
+            aria-label="Metrics"
+            className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
+          >
+            📊
+          </Link>
         </div>
-        <h1 className="text-2xl font-extrabold text-gray-800 capitalize">
+        <ChoreBunnyLogo size="lg" />
+        <h1 className="text-2xl font-extrabold text-gray-800 capitalize mt-3">
           {routine === "morning" ? "☀️" : "🌙"} {routine} routine
         </h1>
-        <div className="flex items-center gap-2 mt-0.5">
+        <div className="flex items-center justify-center gap-2 mt-0.5">
           <button
             onClick={() => router.push(`/${routine}?date=${offsetDate(date, -1)}`)}
             className="text-orange-300 hover:text-orange-500 text-lg leading-none px-1"
@@ -141,12 +140,43 @@ export function RoutineView({ routine }: Props) {
           >
             ‹
           </button>
-          <p className="text-sm font-medium" style={{ color: "#C4956A" }}>
-            {isToday
-              ? "Today"
-              : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date + "T00:00:00"))}
-            {canShowProgress && ` · ${completedCount}/${totalCount} done`}
-          </p>
+          <div className="flex flex-col items-center gap-1">
+            <button
+              onClick={() => {
+                const input = dateInputRef.current;
+                if (!input) return;
+                try {
+                  if (typeof input.showPicker === "function") {
+                    input.showPicker();
+                    return;
+                  }
+                } catch {
+                  input.focus();
+                  return;
+                }
+                input.focus();
+              }}
+              className="text-sm font-medium rounded-xl px-2 py-1 hover:bg-orange-50"
+              style={{ color: "#C4956A" }}
+            >
+              {isToday
+                ? "Today"
+                : new Intl.DateTimeFormat("en-US", { weekday: "short", month: "short", day: "numeric" }).format(new Date(date + "T00:00:00"))}
+              {canShowProgress && ` · ${completedCount}/${totalCount} done`}
+              {" "}<span className="sr-only">Choose date</span>
+            </button>
+            <input
+              ref={dateInputRef}
+              type="date"
+              value={date}
+              max={today}
+              onChange={(e) => {
+                if (e.target.value && e.target.validity.valid) router.push(`/${routine}?date=${e.target.value}`);
+              }}
+              aria-label="Choose date"
+              className="rounded-xl border border-orange-100 bg-white px-2 py-1 text-sm text-gray-700"
+            />
+          </div>
           <button
             onClick={() => router.push(`/${routine}?date=${offsetDate(date, 1)}`)}
             disabled={isToday}
@@ -160,7 +190,7 @@ export function RoutineView({ routine }: Props) {
 
       {/* Child switcher */}
       {children.length > 0 && (
-        <div className="px-5 pb-1 flex gap-2 flex-wrap">
+        <div className="px-5 pb-1 flex gap-2 flex-wrap justify-center">
           {children.map((child) => (
             <button
               key={child.id}

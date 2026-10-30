@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor } from "@testing-library/react";
+import { act, fireEvent, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
@@ -107,6 +107,73 @@ describe("RoutineView", () => {
     expect(navigation.router.push).toHaveBeenLastCalledWith(`/${routine}?date=2024-02-28`);
     await userEvent.click(screen.getByRole("button", { name: "Next day" }));
     expect(navigation.router.push).toHaveBeenLastCalledWith(`/${routine}?date=2024-03-01`);
+  });
+
+  it("opens the native date picker from the date label, capped at today", async () => {
+    navigation.searchParams.delete("date");
+    const showPicker = vi.fn();
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText<HTMLInputElement>("Choose date");
+    Object.defineProperty(input, "showPicker", { value: showPicker });
+    await userEvent.click(screen.getByRole("button", { name: "Today · 0/2 done Choose date" }));
+    expect(showPicker).toHaveBeenCalledOnce();
+    expect(input.max).toBe(input.value);
+  });
+
+  it.each(["unavailable", "unsupported"])("focuses the usable date input when showPicker is %s", async (support) => {
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText<HTMLInputElement>("Choose date");
+    Object.defineProperty(input, "showPicker", {
+      value: support === "unavailable" ? undefined : () => {
+        throw new DOMException("Picker unavailable", "NotSupportedError");
+      },
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: "Today · 0/2 done Choose date" }));
+    expect(input).toHaveFocus();
+    expect(input).toBeVisible();
+    fireEvent.change(input, { target: { value: "2024-02-20" } });
+    expect(navigation.router.push).toHaveBeenLastCalledWith("/morning?date=2024-02-20");
+  });
+
+  it("allows direct keyboard and touch access to the date input", async () => {
+    const user = userEvent.setup();
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText("Choose date");
+
+    screen.getByRole("button", { name: "Today · 0/2 done Choose date" }).focus();
+    await user.tab();
+    expect(input).toHaveFocus();
+
+    input.blur();
+    await user.pointer([
+      { keys: "[TouchA>]", target: input },
+      { keys: "[/TouchA]" },
+    ]);
+    expect(input).toHaveFocus();
+  });
+
+  it.each([
+    { date: "2026-03-09", shouldNavigate: true },
+    { date: "2026-03-10", shouldNavigate: true },
+    { date: "2026-03-11", shouldNavigate: false },
+    { date: "", shouldNavigate: false },
+  ])("handles picker date '$date' (navigate: $shouldNavigate)", async ({ date, shouldNavigate }) => {
+    vi.useFakeTimers({ toFake: ["Date"] });
+    vi.setSystemTime(new Date(2026, 2, 10, 12));
+    navigation.searchParams.set("date", "2024-02-20");
+    render(<RoutineView routine="evening" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    const input = screen.getByLabelText<HTMLInputElement>("Choose date");
+    fireEvent.change(input, { target: { value: date } });
+    if (shouldNavigate) {
+      expect(navigation.router.push).toHaveBeenCalledExactlyOnceWith(`/evening?date=${date}`);
+    } else {
+      expect(navigation.router.push).not.toHaveBeenCalled();
+    }
   });
 
   it("can celebrate the final task after navigating to another date", async () => {
@@ -333,6 +400,6 @@ describe("RoutineView", () => {
     vi.mocked(api.fetchTasks).mockResolvedValue([]);
     vi.mocked(api.fetchCompletions).mockResolvedValue([]);
     render(<RoutineView routine="evening" />, { wrapper: wrapper() });
-    await screen.findByText(/evening routine/i);
+    expect(await screen.findByRole("heading", { name: /evening routine/i })).toBeInTheDocument();
   });
 });
