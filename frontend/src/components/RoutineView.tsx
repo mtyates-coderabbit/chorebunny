@@ -129,6 +129,13 @@ export function RoutineView({ routine }: Props) {
           >
             📊
           </Link>
+          <Link
+            href="/weekly"
+            aria-label="Weekly summary"
+            className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
+          >
+            📅
+          </Link>
         </div>
         <ChoreBunnyLogo size="lg" />
         <h1 className="text-2xl font-extrabold text-gray-800 capitalize mt-3">

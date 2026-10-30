@@ -1,10 +1,10 @@
 import { useQuery } from "@tanstack/react-query";
 import { fetchStreaks } from "@/lib/api";
 
-/** Fetch a routine's current and longest completion streaks, scoped to a child; disabled until a child is selected. */
-export function useStreaks(routine: string, childId?: number) {
+/** Fetch current and longest completion streaks, optionally scoped to a routine and a child; disabled until a child is selected. */
+export function useStreaks(routine?: string, childId?: number) {
   return useQuery({
-    queryKey: ["streaks", routine, childId ?? null],
+    queryKey: ["streaks", routine ?? "all", childId ?? null],
     queryFn: () => fetchStreaks(routine, childId),
     enabled: childId !== undefined,
   });
