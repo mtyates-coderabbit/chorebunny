@@ -521,12 +521,16 @@ def get_range_summary(db: Session, start_date: date, end_date: date, child_id: i
     )
 
 
-def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummary:
+def get_streaks(
+    db: Session, routine: str | None = None, child_id: int | None = None
+) -> schemas.StreakSummary:
     """Return current and longest consecutive-day completion streaks.
 
     A day counts if at least one active task was completed that day.
     Optionally scoped to a single routine; omitting routine spans both.
-    The current streak counts backward from today; a gap yesterday breaks it.
+    Optionally scoped to a single child; omitting child_id counts a day for
+    any child's completion. The current streak counts backward from today;
+    a gap yesterday breaks it.
     """
     today = date.today()
     q = (
@@ -537,6 +541,8 @@ def get_streaks(db: Session, routine: str | None = None) -> schemas.StreakSummar
     )
     if routine:
         q = q.where(models.Task.routine == routine)
+    if child_id is not None:
+        q = q.where(models.TaskCompletion.child_id == child_id)
     q = q.distinct().order_by(models.TaskCompletion.completion_date.desc())
     dates: list[date] = list(db.scalars(q))
 
