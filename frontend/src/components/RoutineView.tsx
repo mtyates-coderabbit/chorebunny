@@ -7,6 +7,7 @@ import Link from "next/link";
 import { useBalance } from "@/hooks/useBalance";
 import { useChildren } from "@/hooks/useChildren";
 import { useCompletions } from "@/hooks/useCompletions";
+import { useStreaks } from "@/hooks/useStreaks";
 import { useTasks } from "@/hooks/useTasks";
 import { useToggleCompletion } from "@/hooks/useToggleCompletion";
 import { CarrotCounter } from "./CarrotCounter";
@@ -65,6 +66,7 @@ export function RoutineView({ routine }: Props) {
   );
   const toggle = useToggleCompletion(date, activeChildId ?? undefined);
   const { data: balance } = useBalance(activeChildId ?? undefined);
+  const { data: streak } = useStreaks(routine, activeChildId ?? undefined);
 
   const completedIds = new Set(completions.map((c) => c.task_id));
   const completedCount = tasks.filter((t) => completedIds.has(t.id)).length;
@@ -127,6 +129,13 @@ export function RoutineView({ routine }: Props) {
           >
             📊
           </Link>
+          <Link
+            href="/weekly"
+            aria-label="Weekly summary"
+            className="text-sm font-semibold text-gray-400 hover:text-gray-600 bg-white rounded-xl px-3 py-2 shadow-sm border border-gray-100"
+          >
+            📅
+          </Link>
         </div>
         <ChoreBunnyLogo size="lg" />
         <h1 className="text-2xl font-extrabold text-gray-800 capitalize mt-3">
@@ -186,6 +195,11 @@ export function RoutineView({ routine }: Props) {
             ›
           </button>
         </div>
+        {children.length > 0 && (
+          <p className="mt-1 text-sm font-semibold" style={{ color: "#F97316" }}>
+            🔥 {activeChildId !== null ? streak?.current_streak ?? 0 : 0}-day streak
+          </p>
+        )}
       </header>
 
       {/* Child switcher */}

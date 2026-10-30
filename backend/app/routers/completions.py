@@ -43,9 +43,13 @@ def get_summary(date: date_type | None = None, child_id: int | None = None, db: 
 
 
 @router.get("/streaks", response_model=schemas.StreakSummary)
-def get_streaks(routine: Literal["morning", "evening"] | None = None, db: Session = Depends(get_db)):
-    """Return current and longest completion streaks, optionally scoped to a routine."""
-    return crud.get_streaks(db, routine=routine)
+def get_streaks(
+    routine: Literal["morning", "evening"] | None = None,
+    child_id: int | None = None,
+    db: Session = Depends(get_db),
+):
+    """Return current and longest completion streaks, optionally scoped to a routine and/or child."""
+    return crud.get_streaks(db, routine=routine, child_id=child_id)
 
 
 @router.get("/summary/range", response_model=schemas.RangeSummary)

@@ -112,6 +112,12 @@ export interface ChildBalance {
   dollar_value: number;
 }
 
+export interface StreakSummary {
+  current_streak: number;
+  longest_streak: number;
+  last_completion_date: string | null;
+}
+
 export interface Reward {
   id: number;
   name: string;
