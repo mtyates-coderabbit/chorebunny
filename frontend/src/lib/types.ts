@@ -144,3 +144,25 @@ export interface RedemptionRequest {
   created_at: string;
   resolved_at: string | null;
 }
+
+export interface Goal {
+  id: number;
+  child_id: number;
+  name: string;
+  target_dollars: number;
+  earned_dollars: number;
+  progress_percent: number;
+  created_at: string;
+  completed_at: string | null;
+}
+
+export interface GoalCreate {
+  child_id: number;
+  name: string;
+  target_dollars: number;
+}
+
+export interface GoalUpdate {
+  name?: string;
+  target_dollars?: number;
+}
