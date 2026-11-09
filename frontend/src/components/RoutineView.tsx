@@ -66,7 +66,7 @@ export function RoutineView({ routine }: Props) {
   );
   const toggle = useToggleCompletion(date, activeChildId ?? undefined);
   const { data: balance } = useBalance(activeChildId ?? undefined);
-  const { data: streak } = useStreaks(routine, activeChildId ?? undefined);
+  const { data: streak, isError: streakError } = useStreaks(routine, activeChildId ?? undefined);
 
   const completedIds = new Set(completions.map((c) => c.task_id));
   const completedCount = tasks.filter((t) => completedIds.has(t.id)).length;
@@ -197,7 +197,9 @@ export function RoutineView({ routine }: Props) {
         </div>
         {children.length > 0 && (
           <p className="mt-1 text-sm font-semibold" style={{ color: "#F97316" }}>
-            🔥 {activeChildId !== null ? streak?.current_streak ?? 0 : 0}-day streak
+            {activeChildId !== null && streakError
+              ? "Streak unavailable"
+              : `🔥 ${activeChildId !== null ? streak?.current_streak ?? 0 : 0}-day streak`}
           </p>
         )}
       </header>

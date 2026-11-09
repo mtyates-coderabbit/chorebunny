@@ -386,6 +386,40 @@ describe("RoutineView", () => {
     expect(await screen.findByText(/5-day streak/)).toBeInTheDocument();
   });
 
+  it("shows an unavailable streak on failure and preserves a successful zero when switching children", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchStreaks).mockRejectedValueOnce(new Error("Request failed"));
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+
+    expect(await screen.findByText("Streak unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/0-day streak/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Bob/ }));
+    await waitFor(() => expect(api.fetchStreaks).toHaveBeenCalledWith("morning", 2));
+    expect(await screen.findByText(/0-day streak/)).toBeInTheDocument();
+    expect(screen.queryByText("Streak unavailable")).not.toBeInTheDocument();
+  });
+
+  it("shows an unavailable streak when a refresh fails with cached data", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchStreaks).mockResolvedValueOnce({
+      current_streak: 4, longest_streak: 9, last_completion_date: "2026-03-09",
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<RoutineView routine="morning" />, { wrapper: wrapper(qc) });
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    await screen.findByText(/4-day streak/);
+
+    vi.mocked(api.fetchStreaks).mockRejectedValue(new Error("Request failed"));
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ["streaks"] });
+    });
+
+    expect(await screen.findByText("Streak unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/4-day streak/)).not.toBeInTheDocument();
+  });
+
   it("does not show a streak badge when the household has no children configured", async () => {
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
     await screen.findByText("Brush teeth");
