@@ -292,11 +292,12 @@ def delete_goal(db: Session, goal_id: int) -> bool:
 
 
 def complete_goal(db: Session, goal_id: int) -> schemas.Goal | None:
-    """Mark a goal completed now; returns None if not found."""
+    """Complete a goal, preserving its original completion time; returns None if not found."""
     goal = db.get(models.Goal, goal_id)
     if not goal:
         return None
-    goal.completed_at = datetime.utcnow()
+    if goal.completed_at is None:
+        goal.completed_at = datetime.utcnow()
     db.commit()
     db.refresh(goal)
     rate = get_settings(db).carrots_per_dollar

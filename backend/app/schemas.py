@@ -239,18 +239,18 @@ class RedemptionRequest(BaseModel):
 
 
 class GoalCreate(BaseModel):
-    """Payload for creating a savings goal; target_dollars must be positive."""
+    """Payload for creating a savings goal; target_dollars must be finite and positive."""
 
     child_id: int
     name: str = Field(pattern=r"\S")
-    target_dollars: float = Field(gt=0)
+    target_dollars: float = Field(gt=0, allow_inf_nan=False)
 
 
 class GoalUpdate(BaseModel):
     """Partial goal update; omitted fields are unchanged."""
 
     name: str | None = Field(default=None, pattern=r"\S")
-    target_dollars: float | None = Field(default=None, gt=0)
+    target_dollars: float | None = Field(default=None, gt=0, allow_inf_nan=False)
 
     @field_validator("name", "target_dollars")
     @classmethod

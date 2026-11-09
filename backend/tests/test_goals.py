@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta
 
 import pytest
 
@@ -47,8 +47,24 @@ class TestGoalsAPI:
         assert client.post("/api/goals/999/complete").status_code == 404
         assert client.delete("/api/goals/999").status_code == 404
 
-    @pytest.mark.parametrize("target", [0, -10])
-    def test_create_rejects_non_positive_target(self, client, db, target):
+    def test_repeated_completion_preserves_original_timestamp(self, client, db):
+        child = _child(db)
+        goal = client.post("/api/goals", json={"child_id": child.id, "name": "Lego", "target_dollars": 10}).json()
+        assert client.post(f"/api/goals/{goal['id']}/complete").json()["completed_at"] is not None
+
+        original_timestamp = datetime(2025, 1, 2, 3, 4, 5)
+        stored_goal = db.get(Goal, goal["id"])
+        stored_goal.completed_at = original_timestamp
+        db.commit()
+
+        res = client.post(f"/api/goals/{goal['id']}/complete")
+        assert res.status_code == 200
+        assert res.json()["completed_at"] == original_timestamp.isoformat()
+        db.refresh(stored_goal)
+        assert stored_goal.completed_at == original_timestamp
+
+    @pytest.mark.parametrize("target", [0, -10, "Infinity", "-Infinity", "NaN", "1e309"])
+    def test_create_rejects_invalid_target(self, client, db, target):
         child = _child(db)
         res = client.post("/api/goals", json={"child_id": child.id, "name": "x", "target_dollars": target})
         assert res.status_code == 422
@@ -60,7 +76,10 @@ class TestGoalsAPI:
         goal = client.post("/api/goals", json={"child_id": child.id, "name": "ok", "target_dollars": 10}).json()
         assert client.put(f"/api/goals/{goal['id']}", json={"name": name}).status_code == 422
 
-    @pytest.mark.parametrize("body", [{"target_dollars": 0}, {"target_dollars": None}, {"name": None}])
+    @pytest.mark.parametrize("body", [
+        {"target_dollars": target}
+        for target in [0, -10, None, "Infinity", "-Infinity", "NaN", "1e309"]
+    ] + [{"name": None}])
     def test_update_rejects_invalid_values(self, client, db, body):
         child = _child(db)
         goal = client.post("/api/goals", json={"child_id": child.id, "name": "ok", "target_dollars": 10}).json()
