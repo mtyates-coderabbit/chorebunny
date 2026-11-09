@@ -389,14 +389,15 @@ describe("RoutineView", () => {
   it("shows an unavailable streak on failure and preserves a successful zero when switching children", async () => {
     vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
     vi.mocked(api.fetchStreaks).mockRejectedValueOnce(new Error("Request failed"));
-    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<RoutineView routine="morning" />, { wrapper: wrapper(qc) });
     await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
 
     expect(await screen.findByText("Streak unavailable")).toBeInTheDocument();
     expect(screen.queryByText(/0-day streak/)).not.toBeInTheDocument();
 
     await userEvent.click(screen.getByRole("button", { name: /Bob/ }));
-    await waitFor(() => expect(api.fetchStreaks).toHaveBeenCalledWith("morning", 2));
+    await waitFor(() => expect(qc.getQueryState(["streaks", "morning", 2])?.status).toBe("success"));
     expect(await screen.findByText(/0-day streak/)).toBeInTheDocument();
     expect(screen.queryByText("Streak unavailable")).not.toBeInTheDocument();
   });
