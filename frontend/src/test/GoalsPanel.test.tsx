@@ -70,6 +70,21 @@ describe("GoalsPanel", () => {
     expect(api.completeGoal).toHaveBeenCalledWith(1);
   });
 
+  it("shows a completion error and allows a retry", async () => {
+    vi.mocked(api.fetchGoals).mockResolvedValue([goal({ progress_percent: 100, earned_dollars: 45 })]);
+    vi.mocked(api.completeGoal)
+      .mockRejectedValueOnce(new Error("API 500"))
+      .mockResolvedValueOnce(goal({ completed_at: "now", progress_percent: 100 }));
+    renderPanel();
+
+    const button = await screen.findByRole("button", { name: "Mark complete" });
+    await userEvent.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't complete that goal. Try again!");
+    await userEvent.click(button);
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(api.completeGoal).toHaveBeenCalledTimes(2);
+  });
+
   it("adds a goal with a name and dollar target, then clears the form", async () => {
     vi.mocked(api.createGoal).mockResolvedValue(goal({ earned_dollars: 0, progress_percent: 0 }));
     renderPanel();
@@ -99,6 +114,21 @@ describe("GoalsPanel", () => {
     renderPanel();
     await userEvent.click(await screen.findByRole("button", { name: "Remove Lego set" }));
     expect(api.deleteGoal).toHaveBeenCalledWith(1);
+  });
+
+  it("shows a removal error and allows a retry", async () => {
+    vi.mocked(api.fetchGoals).mockResolvedValue([goal()]);
+    vi.mocked(api.deleteGoal)
+      .mockRejectedValueOnce(new Error("API 500"))
+      .mockResolvedValueOnce(undefined);
+    renderPanel();
+
+    const button = await screen.findByRole("button", { name: "Remove Lego set" });
+    await userEvent.click(button);
+    expect(await screen.findByRole("alert")).toHaveTextContent("Couldn't remove that goal. Try again!");
+    await userEvent.click(button);
+    await waitFor(() => expect(screen.queryByRole("alert")).not.toBeInTheDocument());
+    expect(api.deleteGoal).toHaveBeenCalledTimes(2);
   });
 
   it("shows an error when goals fail to load", async () => {

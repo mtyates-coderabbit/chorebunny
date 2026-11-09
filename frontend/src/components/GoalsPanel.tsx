@@ -85,6 +85,13 @@ export function GoalsPanel({ childId }: Props) {
         })
       )}
 
+      {complete.isError && (
+        <p role="alert" className="text-sm text-red-500">Couldn&apos;t complete that goal. Try again!</p>
+      )}
+      {remove.isError && (
+        <p role="alert" className="text-sm text-red-500">Couldn&apos;t remove that goal. Try again!</p>
+      )}
+
       <form onSubmit={handleSubmit} className="flex gap-2">
         <input
           value={name}
