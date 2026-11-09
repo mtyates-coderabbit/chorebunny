@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { act, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -52,6 +52,60 @@ describe("WeeklySummaryView", () => {
     expect(await screen.findByText(/Add a child in Settings/)).toBeInTheDocument();
   });
 
+  it("distinguishes pending children from an empty household", async () => {
+    let resolveChildren!: (children: Child[]) => void;
+    vi.mocked(api.fetchChildren).mockReturnValue(new Promise((resolve) => { resolveChildren = resolve; }));
+    renderWeekly();
+    expect(screen.getByRole("status")).toHaveTextContent("Loading children");
+    expect(screen.queryByText(/Add a child in Settings/)).not.toBeInTheDocument();
+    await act(async () => resolveChildren([]));
+    expect(await screen.findByText(/Add a child in Settings/)).toBeInTheDocument();
+  });
+
+  it("shows a children error and retries successfully", async () => {
+    vi.mocked(api.fetchChildren).mockRejectedValueOnce(new Error("Unavailable")).mockResolvedValueOnce(CHILDREN);
+    renderWeekly();
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load children");
+    expect(screen.queryByText(/Add a child in Settings/)).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "Retry" }));
+    expect(await screen.findByRole("button", { name: /Alice/ })).toBeInTheDocument();
+    expect(api.fetchChildren).toHaveBeenCalledTimes(2);
+  });
+
+  it.each([1, 2, 3, 4])("ranks the least completed chores independently with %i chores", async (count) => {
+    const task_stats = Array.from({ length: count }, (_, i) => ({ task_id: i + 1, name: `Chore ${i + 1}`, routine: "morning", count: count - i }));
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchRangeSummary).mockResolvedValue({ ...RANGE, task_stats });
+    renderWeekly();
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    const heading = await screen.findByRole("heading", { name: "Needs attention" });
+    expect(within(heading.parentElement!).getAllByRole("listitem").map((item) => item.textContent)).toEqual(
+      [...task_stats].reverse().slice(0, 3).map((task) => `${task.name} · ${task.count}×`)
+    );
+  });
+
+  it("waits for the streak query before displaying a successful zero", async () => {
+    let resolveStreak!: (streak: StreakSummary) => void;
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchStreaks).mockReturnValue(new Promise((resolve) => { resolveStreak = resolve; }));
+    renderWeekly();
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    expect(await screen.findByText("Loading streak...")).toBeInTheDocument();
+    expect(screen.queryByText(/🔥/)).not.toBeInTheDocument();
+    await act(async () => resolveStreak({ ...STREAK, current_streak: 0 }));
+    expect(await screen.findByText(/🔥 0/)).toBeInTheDocument();
+  });
+
+  it("shows a streak error without displaying a number", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchStreaks).mockRejectedValue(new Error("Unavailable"));
+    renderWeekly();
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    expect(await screen.findByRole("alert")).toHaveTextContent("Unable to load streak");
+    expect(screen.queryByText(/🔥/)).not.toBeInTheDocument();
+    expect(screen.getByText("12 🥕")).toBeInTheDocument();
+  });
+
   it("requires a child to be selected before showing any data", async () => {
     vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
     renderWeekly();
@@ -69,7 +123,7 @@ describe("WeeklySummaryView", () => {
     expect(api.fetchStreaks).toHaveBeenCalledWith(undefined, 1);
     expect(await screen.findByText("12 🥕")).toBeInTheDocument();
     expect(screen.getByText(/🔥 3/)).toBeInTheDocument();
-    expect(screen.getByText("Brush teeth · 6×")).toBeInTheDocument();
+    expect(screen.getAllByText("Brush teeth · 6×")[0]).toBeInTheDocument();
     expect(screen.getByText("Read a book · 0×")).toBeInTheDocument();
   });
 

@@ -30,7 +30,7 @@ function formatShortDate(dateStr: string): string {
  */
 export function WeeklySummaryView() {
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
-  const { data: children = [] } = useChildren();
+  const { data: children = [], isPending: childrenPending, isError: childrenError, refetch: refetchChildren } = useChildren();
 
   const now = new Date();
   const end = formatLocalDate(now);
@@ -39,7 +39,7 @@ export function WeeklySummaryView() {
   const { data: range, isLoading, isError } = useRangeSummary(
     start, end, activeChildId ?? undefined, activeChildId !== null
   );
-  const { data: streak } = useStreaks(undefined, activeChildId ?? undefined);
+  const { data: streak, isPending: streakPending, isError: streakError, isSuccess: streakSuccess } = useStreaks(undefined, activeChildId ?? undefined);
 
   const weekTotal = useMemo(
     () => range?.days.reduce((sum, d) => sum + d.earned_carrots, 0) ?? 0,
@@ -51,13 +51,21 @@ export function WeeklySummaryView() {
   );
   const leastCompleted = useMemo(() => {
     if (!range) return [];
-    const topIds = new Set(mostCompleted.map((t) => t.task_id));
-    return [...range.task_stats].filter((t) => !topIds.has(t.task_id)).sort((a, b) => a.count - b.count).slice(0, 3);
-  }, [range, mostCompleted]);
+    return [...range.task_stats].sort((a, b) => a.count - b.count).slice(0, 3);
+  }, [range]);
 
   return (
     <div className="px-5 pb-10">
-      {children.length === 0 ? (
+      {childrenPending ? (
+        <p role="status" className="text-center py-10 text-gray-400">Loading children...</p>
+      ) : childrenError ? (
+        <div role="alert" className="text-center py-10 text-gray-400">
+          <p>Unable to load children. Please try again.</p>
+          <button onClick={() => void refetchChildren()} className="mt-2 px-3 py-1.5 rounded-xl border border-orange-300 text-orange-500 font-semibold">
+            Retry
+          </button>
+        </div>
+      ) : children.length === 0 ? (
         <p className="text-center py-10 text-gray-400">
           Add a child in Settings to see a weekly summary.
         </p>
@@ -104,9 +112,15 @@ export function WeeklySummaryView() {
                   <p className="text-xs text-gray-400 mt-1">earned this week</p>
                 </div>
                 <div className="flex-1 bg-white rounded-2xl p-4 border text-center" style={{ borderColor: "#F0E8DC" }}>
-                  <p className="text-2xl font-extrabold" style={{ color: "#F97316" }}>
-                    🔥 {streak?.current_streak ?? 0}
-                  </p>
+                  {streakPending ? (
+                    <p role="status" className="text-sm text-gray-400">Loading streak...</p>
+                  ) : streakError ? (
+                    <p role="alert" className="text-sm text-gray-400">Unable to load streak.</p>
+                  ) : streakSuccess ? (
+                    <p className="text-2xl font-extrabold" style={{ color: "#F97316" }}>
+                      🔥 {streak.current_streak}
+                    </p>
+                  ) : null}
                   <p className="text-xs text-gray-400 mt-1">day streak</p>
                 </div>
               </div>
