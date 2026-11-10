@@ -1,4 +1,4 @@
-import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, StreakSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -136,4 +136,12 @@ export function approveRedemption(id: number): Promise<RedemptionRequest> {
 /** Deny a pending request without deducting carrots. */
 export function denyRedemption(id: number): Promise<RedemptionRequest> {
   return req(`/api/redemptions/${id}/deny`, { method: "POST" });
+}
+
+/** Return current and longest completion streaks, optionally scoped to a routine and/or child. */
+export function fetchStreaks(routine?: string, childId?: number): Promise<StreakSummary> {
+  const params = new URLSearchParams();
+  if (routine) params.set("routine", routine);
+  if (childId !== undefined) params.set("child_id", String(childId));
+  return req(`/api/streaks?${params}`);
 }

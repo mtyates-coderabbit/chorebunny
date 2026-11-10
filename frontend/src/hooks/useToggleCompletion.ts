@@ -14,6 +14,7 @@ export function useToggleCompletion(date: string, childId?: number) {
       qc.invalidateQueries({ queryKey: ["completions"] });
       qc.invalidateQueries({ queryKey: ["summary"] });
       qc.invalidateQueries({ queryKey: ["balance"] });
+      qc.invalidateQueries({ queryKey: ["streaks"] });
     },
   });
 }

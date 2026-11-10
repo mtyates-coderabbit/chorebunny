@@ -403,6 +403,17 @@ class TestStreaksAPI:
         res = client.get("/api/streaks?routine=morning")
         assert res.json()["current_streak"] == 1
 
+    def test_streaks_child_filter(self, client, morning_task):
+        alice_id = client.post("/api/children", json={"name": "Alice"}).json()["id"]
+        bob_id = client.post("/api/children", json={"name": "Bob"}).json()["id"]
+        client.post("/api/completions/toggle", json={
+            "task_id": morning_task.id, "completion_date": TODAY, "child_id": alice_id,
+        })
+
+        assert client.get(f"/api/streaks?child_id={bob_id}").json()["current_streak"] == 0
+        assert client.get(f"/api/streaks?child_id={alice_id}").json()["current_streak"] == 1
+        assert client.get("/api/streaks").json()["current_streak"] == 1
+
 
 class TestChildrenAPI:
     """Verify child profile endpoints, child-scoped completions, and carrot balances."""

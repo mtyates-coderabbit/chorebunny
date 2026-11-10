@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { RoutineView } from "@/components/RoutineView";
-import type { Child, ChildBalance, Task, ToggleResult } from "@/lib/types";
+import type { Child, ChildBalance, StreakSummary, Task, ToggleResult } from "@/lib/types";
 import { deferred } from "./deferred";
 
 vi.mock("canvas-confetti", () => ({ default: vi.fn() }));
@@ -25,6 +25,7 @@ vi.mock("@/lib/api", () => ({
   toggleCompletion: vi.fn(),
   fetchChildren: vi.fn().mockResolvedValue([]),
   fetchBalance: vi.fn(),
+  fetchStreaks: vi.fn(),
   fetchRewards: vi.fn().mockResolvedValue([]),
   fetchRedemptions: vi.fn().mockResolvedValue([]),
   requestRedemption: vi.fn(),
@@ -77,6 +78,9 @@ describe("RoutineView", () => {
     vi.mocked(api.fetchBalance).mockResolvedValue({
       child_id: 1, current_balance: 0, lifetime_earned: 0, lifetime_redeemed: 0, dollar_value: 0,
     } as ChildBalance);
+    vi.mocked(api.fetchStreaks).mockResolvedValue({
+      current_streak: 0, longest_streak: 0, last_completion_date: null,
+    } as StreakSummary);
   });
 
   it.each(["", "invalid", "2026-2-03", "2026-02-30", "2025-02-29", "2026-13-01", "2026-00-10", "2026-03-00", "0000-01-01", "2026-03-10T00:00:00", "2026-03-11"])(
@@ -359,6 +363,70 @@ describe("RoutineView", () => {
     await screen.findByText("Brush teeth");
     expect(api.fetchBalance).not.toHaveBeenCalled();
     expect(screen.queryByText(/saved/)).not.toBeInTheDocument();
+  });
+
+  it("shows a zero streak before a child is selected, then the real streak after", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Select a child to start");
+    expect(screen.getByText(/0-day streak/)).toBeInTheDocument();
+    expect(api.fetchStreaks).not.toHaveBeenCalled();
+
+    vi.mocked(api.fetchStreaks).mockResolvedValue({
+      current_streak: 4, longest_streak: 9, last_completion_date: "2026-03-09",
+    } as StreakSummary);
+    await userEvent.click(screen.getByRole("button", { name: /Alice/ }));
+    await screen.findByText("Brush teeth");
+    expect(api.fetchStreaks).toHaveBeenCalledWith("morning", 1);
+    expect(await screen.findByText(/4-day streak/)).toBeInTheDocument();
+
+    vi.mocked(api.fetchStreaks).mockResolvedValue({
+      current_streak: 5, longest_streak: 9, last_completion_date: "2026-03-10",
+    } as StreakSummary);
+    await userEvent.click(screen.getByText("Brush teeth"));
+    expect(await screen.findByText(/5-day streak/)).toBeInTheDocument();
+  });
+
+  it("shows an unavailable streak on failure and preserves a successful zero when switching children", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchStreaks).mockRejectedValueOnce(new Error("Request failed"));
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<RoutineView routine="morning" />, { wrapper: wrapper(qc) });
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+
+    expect(await screen.findByText("Streak unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/0-day streak/)).not.toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("button", { name: /Bob/ }));
+    await waitFor(() => expect(qc.getQueryState(["streaks", "morning", 2])?.status).toBe("success"));
+    expect(await screen.findByText(/0-day streak/)).toBeInTheDocument();
+    expect(screen.queryByText("Streak unavailable")).not.toBeInTheDocument();
+  });
+
+  it("shows an unavailable streak when a refresh fails with cached data", async () => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchStreaks).mockResolvedValueOnce({
+      current_streak: 4, longest_streak: 9, last_completion_date: "2026-03-09",
+    });
+    const qc = new QueryClient({ defaultOptions: { queries: { retry: false } } });
+    render(<RoutineView routine="morning" />, { wrapper: wrapper(qc) });
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    await screen.findByText(/4-day streak/);
+
+    vi.mocked(api.fetchStreaks).mockRejectedValue(new Error("Request failed"));
+    await act(async () => {
+      await qc.invalidateQueries({ queryKey: ["streaks"] });
+    });
+
+    expect(await screen.findByText("Streak unavailable")).toBeInTheDocument();
+    expect(screen.queryByText(/4-day streak/)).not.toBeInTheDocument();
+  });
+
+  it("does not show a streak badge when the household has no children configured", async () => {
+    render(<RoutineView routine="morning" />, { wrapper: wrapper() });
+    await screen.findByText("Brush teeth");
+    expect(screen.queryByText(/streak/)).not.toBeInTheDocument();
+    expect(api.fetchStreaks).not.toHaveBeenCalled();
   });
 
   it.each(["failed", "pending"])("resets a child's %s reward request when switching children", async (state) => {
