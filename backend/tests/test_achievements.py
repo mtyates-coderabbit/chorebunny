@@ -159,6 +159,10 @@ def test_migration_seed_and_child_cascade_on_existing_database(tmp_path, monkeyp
         connection.execute(text("INSERT INTO tasks (id, name, routine, carrot_value, is_active, sort_order, created_at) VALUES (1, 'Existing', 'morning', 1, 1, 0, CURRENT_TIMESTAMP)"))
     command.upgrade(config, "head")
     monkeypatch.setattr(seed, "SessionLocal", sessionmaker(bind=engine))
+    with Session(engine) as db:
+        assert {badge.name for badge in db.scalars(select(models.Achievement))} == {
+            "First Chore", "First Full Routine", "7-Day Streak", "30-Day Streak", "Perfect Week", "100 Carrots Earned",
+        }
     seed.seed()
     seed.seed()
     with Session(engine) as db:
@@ -174,4 +178,36 @@ def test_migration_seed_and_child_cascade_on_existing_database(tmp_path, monkeyp
     with engine.connect() as connection:
         assert connection.execute(text("SELECT name FROM tasks")).scalar_one() == "Existing"
     command.upgrade(config, "head")
+    engine.dispose()
+
+
+@pytest.mark.parametrize("already_seeded", [False, True])
+def test_definition_migration_upgrades_existing_achievement_database(tmp_path, monkeypatch, already_seeded):
+    url = f"sqlite:///{tmp_path / 'existing-achievements.db'}"
+    monkeypatch.setattr(settings, "database_url", url)
+    config = Config("alembic.ini")
+    command.upgrade(config, "b8c9d0e1f2a3")
+    engine = create_engine(url)
+    with Session(engine) as db:
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        task = crud.create_task(db, schemas.TaskCreate(name="Existing chore", routine="morning"))
+        if already_seeded:
+            achievements.seed_achievements(db)
+            db.commit()
+            badge = db.scalar(select(models.Achievement).where(models.Achievement.key == "first_chore"))
+            badge.description = "Existing description"
+            db.commit()
+        crud.toggle_completion(db, task.id, date.today(), child.id)
+    command.upgrade(config, "head")
+    with Session(engine) as db:
+        assert len(db.scalars(select(models.Achievement)).all()) == 6
+        assert len(db.scalars(select(models.TaskCompletion)).all()) == 1
+        assert len(db.scalars(select(models.ChildAchievement)).all()) == (2 if already_seeded else 0)
+        if already_seeded:
+            assert db.scalar(select(models.Achievement.description).where(models.Achievement.key == "first_chore")) == "Existing description"
+    command.downgrade(config, "b8c9d0e1f2a3")
+    command.upgrade(config, "head")
+    with Session(engine) as db:
+        assert len(db.scalars(select(models.Achievement)).all()) == 6
+        assert len(db.scalars(select(models.ChildAchievement)).all()) == (2 if already_seeded else 0)
     engine.dispose()
