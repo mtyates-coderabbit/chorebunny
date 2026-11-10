@@ -106,9 +106,20 @@ class Completion(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UnlockedAchievement(BaseModel):
+    """An achievement newly unlocked by an action."""
+
+    id: int
+    name: str
+    description: str
+    icon: str
+    unlocked_at: datetime
+
+
 class ToggleResult(BaseModel):
     action: Literal["created", "deleted"]
     completion: Completion | None
+    newly_unlocked: list[UnlockedAchievement] = Field(default_factory=list)
 
 
 class RoutineSummary(BaseModel):

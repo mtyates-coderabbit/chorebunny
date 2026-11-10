@@ -5,7 +5,7 @@ from sqlalchemy.dialects.sqlite import insert
 from sqlalchemy.exc import IntegrityError, SQLAlchemyError
 from sqlalchemy.orm import Session, selectinload
 
-from app import models, schemas
+from app import achievements, models, schemas
 
 
 def get_settings(db: Session) -> schemas.Settings:
@@ -393,13 +393,16 @@ def toggle_completion(
             deleted = db.execute(
                 delete(models.TaskCompletion).where(models.TaskCompletion.id == existing.id)
             )
+            newly_unlocked = []
             if deleted.rowcount:
                 _debit_balance(db, child_id, awarded_carrots)
+                if child_id is not None:
+                    newly_unlocked = achievements.evaluate_achievements(db, child_id)
             db.commit()
-        except SQLAlchemyError:
+        except Exception:
             db.rollback()
             raise
-        return schemas.ToggleResult(action="deleted", completion=None)
+        return schemas.ToggleResult(action="deleted", completion=None, newly_unlocked=newly_unlocked)
 
     completion = models.TaskCompletion(
         task_id=task_id,
@@ -410,13 +413,6 @@ def toggle_completion(
     db.add(completion)
     try:
         db.flush()
-        _credit_balance(db, child_id, completion.awarded_carrots)
-        db.commit()
-        db.refresh(completion)
-        return schemas.ToggleResult(
-            action="created",
-            completion=schemas.Completion.model_validate(completion),
-        )
     except IntegrityError:
         db.rollback()
         if child_id is not None and db.get(models.Child, child_id) is None:
@@ -437,6 +433,19 @@ def toggle_completion(
     except SQLAlchemyError:
         db.rollback()
         raise
+    try:
+        _credit_balance(db, child_id, completion.awarded_carrots)
+        newly_unlocked = achievements.evaluate_achievements(db, child_id) if child_id is not None else []
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    db.refresh(completion)
+    return schemas.ToggleResult(
+        action="created",
+        completion=schemas.Completion.model_validate(completion),
+        newly_unlocked=newly_unlocked,
+    )
 
 
 def get_range_summary(db: Session, start_date: date, end_date: date, child_id: int | None = None) -> schemas.RangeSummary:

@@ -14,6 +14,7 @@ const task: Task = {
   is_active: true,
   sort_order: 0,
   created_at: "2026-09-25T00:00:00",
+  assigned_child_ids: [],
 };
 
 describe("TaskCard", () => {

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from app.database import SessionLocal
+from app.achievements import seed_achievements
 from app.models import Task
 
 
@@ -25,8 +26,10 @@ EVENING_TASKS = [
 def seed() -> None:
     db = SessionLocal()
     try:
+        seed_achievements(db)
         existing = db.query(Task).count()
         if existing > 0:
+            db.commit()
             print(f"Database already has {existing} tasks — skipping seed.")
             return
 
