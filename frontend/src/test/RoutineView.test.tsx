@@ -72,6 +72,7 @@ describe("RoutineView", () => {
     vi.mocked(api.toggleCompletion).mockResolvedValue({
       action: "created",
       completion: { id: 1, task_id: 1, child_id: null, completion_date: "2026-09-25", completed_at: "" },
+      newly_unlocked: [],
     } as ToggleResult);
     vi.mocked(api.fetchBalance).mockResolvedValue({
       child_id: 1, current_balance: 0, lifetime_earned: 0, lifetime_redeemed: 0, dollar_value: 0,
@@ -235,8 +236,8 @@ describe("RoutineView", () => {
       ]); // after second toggle
 
     vi.mocked(api.toggleCompletion)
-      .mockResolvedValueOnce({ action: "created", completion: { id: 1, task_id: 1, child_id: null, completion_date: "2026-09-25", completed_at: "" } })
-      .mockResolvedValueOnce({ action: "created", completion: { id: 2, task_id: 2, child_id: null, completion_date: "2026-09-25", completed_at: "" } });
+      .mockResolvedValueOnce({ action: "created", completion: { id: 1, task_id: 1, child_id: null, completion_date: "2026-09-25", completed_at: "" }, newly_unlocked: [] })
+      .mockResolvedValueOnce({ action: "created", completion: { id: 2, task_id: 2, child_id: null, completion_date: "2026-09-25", completed_at: "" }, newly_unlocked: [] });
 
     render(<RoutineView routine="morning" />, { wrapper: wrapper() });
 

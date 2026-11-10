@@ -39,9 +39,18 @@ export interface Completion {
   completed_at: string;
 }
 
+export interface UnlockedAchievement {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  unlocked_at: string;
+}
+
 export interface ToggleResult {
   action: "created" | "deleted";
   completion: Completion | null;
+  newly_unlocked: UnlockedAchievement[];
 }
 
 export interface RoutineSummary {
