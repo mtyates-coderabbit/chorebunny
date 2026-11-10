@@ -62,6 +62,30 @@ class ChildBalance(Base):
     child: Mapped["Child"] = relationship("Child", back_populates="balance")
 
 
+class Achievement(Base):
+    """A stable badge definition and the threshold used to unlock it."""
+
+    __tablename__ = "achievements"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    key: Mapped[str] = mapped_column(String, nullable=False, unique=True)
+    name: Mapped[str] = mapped_column(String, nullable=False)
+    description: Mapped[str] = mapped_column(String, nullable=False)
+    icon: Mapped[str] = mapped_column(String, nullable=False)
+    criteria_type: Mapped[str] = mapped_column(String, nullable=False)
+    threshold: Mapped[int] = mapped_column(Integer, nullable=False)
+
+
+class ChildAchievement(Base):
+    """An achievement permanently unlocked by one child."""
+
+    __tablename__ = "child_achievements"
+
+    child_id: Mapped[int] = mapped_column(Integer, ForeignKey("children.id", ondelete="CASCADE"), primary_key=True)
+    achievement_id: Mapped[int] = mapped_column(Integer, ForeignKey("achievements.id"), primary_key=True)
+    unlocked_at: Mapped[datetime] = mapped_column(DateTime, nullable=False, default=datetime.utcnow)
+
+
 class Reward(Base):
     """A parent-defined reward children can redeem for carrots."""
 
@@ -158,6 +182,7 @@ class TaskCompletion(Base):
 
     __table_args__ = (
         UniqueConstraint("task_id", "completion_date", "child_id"),
+        Index("ix_task_completions_child_date_task", "child_id", "completion_date", "task_id"),
         Index(
             "uq_task_completions_without_child",
             "task_id",

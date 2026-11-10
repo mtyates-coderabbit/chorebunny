@@ -39,9 +39,18 @@ export interface Completion {
   completed_at: string;
 }
 
+export interface UnlockedAchievement {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  unlocked_at: string;
+}
+
 export interface ToggleResult {
   action: "created" | "deleted";
   completion: Completion | null;
+  newly_unlocked: UnlockedAchievement[];
 }
 
 export interface RoutineSummary {
@@ -110,6 +119,12 @@ export interface ChildBalance {
   lifetime_earned: number;
   lifetime_redeemed: number;
   dollar_value: number;
+}
+
+export interface StreakSummary {
+  current_streak: number;
+  longest_streak: number;
+  last_completion_date: string | null;
 }
 
 export interface Reward {
