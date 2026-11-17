@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import date
+from datetime import date, datetime, timezone
 
 import pytest
 
-from app import achievements, crud, schemas
+from app import achievements, crud, models, schemas
 
 
 @pytest.fixture()
@@ -37,7 +37,9 @@ class TestAchievementsAPI:
         rows = client.get(f"/api/achievements?child_id={child.id}").json()
         first_chore = next(row for row in rows if row["name"] == "First Chore")
         assert first_chore["unlocked"] is True
-        assert first_chore["unlocked_at"] is not None
+        unlocked_at = datetime.fromisoformat(first_chore["unlocked_at"])
+        assert unlocked_at.tzinfo is not None
+        assert unlocked_at.utcoffset().total_seconds() == 0
 
         still_locked = next(row for row in rows if row["name"] == "30-Day Streak")
         assert still_locked["unlocked"] is False
@@ -56,3 +58,16 @@ class TestAchievementsAPI:
     def test_returns_empty_list_when_no_achievements_seeded(self, client, db):
         child = _child(db)
         assert client.get(f"/api/achievements?child_id={child.id}").json() == []
+
+
+def test_naive_unlock_timestamp_is_returned_as_utc(client, db, definitions):
+    child = _child(db)
+    definition = db.query(models.Achievement).first()
+    db.add(models.ChildAchievement(
+        child_id=child.id, achievement_id=definition.id,
+        unlocked_at=datetime(2026, 3, 10, 23, 30),
+    ))
+    db.commit()
+    rows = client.get(f"/api/achievements?child_id={child.id}").json()
+    unlocked = next(row for row in rows if row["id"] == definition.id)
+    assert datetime.fromisoformat(unlocked["unlocked_at"]) == datetime(2026, 3, 10, 23, 30, tzinfo=timezone.utc)

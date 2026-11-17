@@ -1,4 +1,4 @@
-import { render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { describe, it, expect, vi, beforeEach } from "vitest";
@@ -34,6 +34,14 @@ function renderView() {
 
 describe("AchievementsView", () => {
   beforeEach(() => {
+    // jsdom does not implement the browser modal dialog API.
+    HTMLDialogElement.prototype.showModal = vi.fn(function (this: HTMLDialogElement) {
+      this.open = true;
+      this.querySelector("button")?.focus();
+    });
+    HTMLDialogElement.prototype.close = vi.fn(function (this: HTMLDialogElement) {
+      this.open = false;
+    });
     vi.clearAllMocks();
     vi.mocked(api.fetchChildren).mockResolvedValue([]);
     vi.mocked(api.fetchAchievements).mockResolvedValue([]);
@@ -60,7 +68,7 @@ describe("AchievementsView", () => {
     await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
     expect(api.fetchAchievements).toHaveBeenCalledWith(1);
 
-    const entry = await screen.findByRole("listitem", { name: "First Chore, unlocked" });
+    const entry = await screen.findByRole("button", { name: "First Chore, unlocked" });
     expect(entry.querySelector(".grayscale")).not.toBeInTheDocument();
     expect(screen.getByText("Mar 10, 2026")).toBeInTheDocument();
   });
@@ -71,7 +79,7 @@ describe("AchievementsView", () => {
     renderView();
     await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
 
-    const entry = await screen.findByRole("listitem", { name: "First Chore, locked" });
+    const entry = await screen.findByRole("button", { name: "First Chore, locked" });
     expect(entry.querySelector(".grayscale")).toBeInTheDocument();
     expect(screen.queryByText(/2026/)).not.toBeInTheDocument();
   });
@@ -83,11 +91,36 @@ describe("AchievementsView", () => {
     ]);
     renderView();
     await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
-    await userEvent.click(await screen.findByRole("listitem", { name: "First Chore, unlocked" }));
+    await userEvent.click(await screen.findByRole("button", { name: "First Chore, unlocked" }));
 
     const dialog = await screen.findByRole("dialog", { name: "First Chore" });
     expect(dialog).toHaveTextContent("Complete your first chore.");
     expect(dialog).toHaveTextContent("Unlocked Mar 10, 2026");
+  });
+
+  it.each(["Close", "Escape", "backdrop"])("restores badge focus after closing via %s", async (method) => {
+    vi.mocked(api.fetchChildren).mockResolvedValue(CHILDREN);
+    vi.mocked(api.fetchAchievements).mockResolvedValue([badge({ unlocked: true })]);
+    renderView();
+    await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
+    const opener = await screen.findByRole("button", { name: "First Chore, unlocked" });
+    expect(within(screen.getByRole("listitem")).getByRole("button")).toBe(opener);
+    await userEvent.click(opener);
+    const dialog = screen.getByRole("dialog", { name: "First Chore" });
+    expect(HTMLDialogElement.prototype.showModal).toHaveBeenCalled();
+    expect(dialog).toHaveAttribute("aria-modal", "true");
+    expect(within(dialog).getByRole("button", { name: "Close" })).toHaveFocus();
+    if (method === "Close") {
+      await userEvent.click(within(dialog).getByRole("button", { name: "Close" }));
+    } else if (method === "Escape") {
+      // Native Escape dismissal emits close; keyboard handling belongs to the browser.
+      (dialog as HTMLDialogElement).open = false;
+      fireEvent(dialog, new Event("close"));
+    } else {
+      await userEvent.click(dialog);
+    }
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(opener).toHaveFocus();
   });
 
   it("does not reveal the description when tapping a locked badge", async () => {
@@ -95,7 +128,7 @@ describe("AchievementsView", () => {
     vi.mocked(api.fetchAchievements).mockResolvedValue([badge()]);
     renderView();
     await userEvent.click(await screen.findByRole("button", { name: /Alice/ }));
-    await userEvent.click(await screen.findByRole("listitem", { name: "First Chore, locked" }));
+    await userEvent.click(await screen.findByRole("button", { name: "First Chore, locked" }));
 
     expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
     expect(screen.queryByText("Complete your first chore.")).not.toBeInTheDocument();

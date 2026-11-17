@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useAchievements } from "@/hooks/useAchievements";
 import { useChildren } from "@/hooks/useChildren";
 import type { AchievementStatus } from "@/lib/types";
@@ -17,8 +17,22 @@ function formatUnlockDate(iso: string): string {
  * and unlock date; tapping a locked badge never reveals its unlock criteria.
  */
 export function AchievementsView() {
+  const dialogRef = useRef<HTMLDialogElement>(null);
+  const openerRef = useRef<HTMLButtonElement>(null);
+
   const [activeChildId, setActiveChildId] = useState<number | null>(null);
   const [selected, setSelected] = useState<AchievementStatus | null>(null);
+  useEffect(() => {
+    if (!selected) return;
+    const opener = openerRef.current;
+    const dialog = dialogRef.current;
+    dialog?.showModal();
+    return () => {
+      dialog?.close();
+      if (opener?.isConnected) opener.focus();
+    };
+  }, [selected]);
+
   const {
     data: children = [],
     isPending: childrenPending,
@@ -77,24 +91,29 @@ export function AchievementsView() {
           ) : (
             <div className="grid grid-cols-3 gap-3" role="list">
               {achievementsList.map((achievement) => (
-                <button
-                  key={achievement.id}
-                  role="listitem"
-                  aria-label={achievement.unlocked ? `${achievement.name}, unlocked` : `${achievement.name}, locked`}
-                  onClick={() => { if (achievement.unlocked) setSelected(achievement); }}
-                  className={`flex flex-col items-center gap-1 bg-white rounded-2xl p-3 border text-center ${
-                    achievement.unlocked ? "" : "cursor-default"
-                  }`}
-                  style={{ borderColor: achievement.unlocked ? "#F97316" : "#F0E8DC" }}
-                >
-                  <span className={`text-3xl ${achievement.unlocked ? "" : "grayscale opacity-40"}`}>
-                    {achievement.icon}
-                  </span>
-                  <span className="text-xs font-semibold text-gray-700">{achievement.name}</span>
-                  {achievement.unlocked && achievement.unlocked_at ? (
-                    <span className="text-[11px] text-gray-400">{formatUnlockDate(achievement.unlocked_at)}</span>
-                  ) : null}
-                </button>
+                <div key={achievement.id} role="listitem">
+                  <button
+                    aria-label={achievement.unlocked ? `${achievement.name}, unlocked` : `${achievement.name}, locked`}
+                    onClick={(event) => {
+                      if (achievement.unlocked) {
+                        openerRef.current = event.currentTarget;
+                        setSelected(achievement);
+                      }
+                    }}
+                    className={`w-full h-full flex flex-col items-center gap-1 bg-white rounded-2xl p-3 border text-center ${
+                      achievement.unlocked ? "" : "cursor-default"
+                    }`}
+                    style={{ borderColor: achievement.unlocked ? "#F97316" : "#F0E8DC" }}
+                  >
+                    <span className={`text-3xl ${achievement.unlocked ? "" : "grayscale opacity-40"}`}>
+                      {achievement.icon}
+                    </span>
+                    <span className="text-xs font-semibold text-gray-700">{achievement.name}</span>
+                    {achievement.unlocked && achievement.unlocked_at ? (
+                      <span className="text-[11px] text-gray-400">{formatUnlockDate(achievement.unlocked_at)}</span>
+                    ) : null}
+                  </button>
+                </div>
               ))}
             </div>
           )}
@@ -102,10 +121,12 @@ export function AchievementsView() {
       )}
 
       {selected && (
-        <div
-          role="dialog"
+        <dialog
+          ref={dialogRef}
+          aria-modal="true"
+          onClose={(event) => { if (!event.currentTarget.open) setSelected(null); }}
           aria-label={selected.name}
-          className="fixed inset-0 bg-black/40 flex items-center justify-center px-5 z-50"
+          className="fixed inset-0 m-0 h-full max-h-none w-full max-w-none border-0 bg-black/40 open:flex items-center justify-center px-5 z-50"
           onClick={() => setSelected(null)}
         >
           <div className="bg-white rounded-2xl p-6 max-w-xs text-center shadow-lg" onClick={(e) => e.stopPropagation()}>
@@ -122,7 +143,7 @@ export function AchievementsView() {
               Close
             </button>
           </div>
-        </div>
+        </dialog>
       )}
     </div>
   );

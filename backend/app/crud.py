@@ -1,4 +1,4 @@
-from datetime import date, datetime, timedelta
+from datetime import date, datetime, timedelta, timezone
 
 from sqlalchemy import delete, exists, func, select, update
 from sqlalchemy.dialects.sqlite import insert
@@ -312,6 +312,15 @@ def get_achievements(db: Session, child_id: int) -> list[schemas.AchievementStat
             .where(models.ChildAchievement.child_id == child_id)
         ).all()
     )
+    unlocks = {
+        achievement_id: (
+            unlocked_at.replace(tzinfo=timezone.utc)
+            if unlocked_at.tzinfo is None
+            else unlocked_at.astimezone(timezone.utc)
+        )
+        for achievement_id, unlocked_at in unlocks.items()
+        if unlocked_at is not None
+    }
     definitions = db.scalars(select(models.Achievement).order_by(models.Achievement.id))
     return [
         schemas.AchievementStatus(
