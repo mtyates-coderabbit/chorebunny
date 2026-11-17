@@ -1,14 +1,14 @@
 """add goals table
 
-Revision ID: b8c9d0e1f2a3
-Revises: a7b8c9d0e1f2
+Revision ID: d1e2f3a4b5c6
+Revises: c9d0e1f2a3b4
 Create Date: 2026-10-29
 
 """
 from alembic import op
 
-revision = "b8c9d0e1f2a3"
-down_revision = "a7b8c9d0e1f2"
+revision = "d1e2f3a4b5c6"
+down_revision = "c9d0e1f2a3b4"
 branch_labels = None
 depends_on = None
 

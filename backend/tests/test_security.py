@@ -4,8 +4,12 @@ from pathlib import Path
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import create_engine
+from sqlalchemy.orm import sessionmaker
+from sqlalchemy.pool import StaticPool
 
 from app.config import Settings
+from app.database import Base
 from app.main import app
 
 
@@ -37,6 +41,11 @@ def test_auth_fails_closed_if_configuration_disappears(client, monkeypatch):
 def test_cors_trims_origins(monkeypatch):
     monkeypatch.setenv("API_KEY", "test-api-key")
     monkeypatch.setenv("ALLOWED_ORIGINS", " https://one.example , https://two.example ")
+    # The scheduler reads settings at startup via app.database.SessionLocal(), so point it
+    # at a throwaway in-memory db rather than the real configured one for this standalone app.
+    engine = create_engine("sqlite:///:memory:", connect_args={"check_same_thread": False}, poolclass=StaticPool)
+    Base.metadata.create_all(bind=engine)
+    monkeypatch.setattr("app.database.SessionLocal", sessionmaker(bind=engine))
     configured_app = runpy.run_path("app/main.py")["app"]
     with TestClient(configured_app) as client:
         for origin in ["https://one.example", "https://two.example"]:

@@ -1,4 +1,4 @@
-import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, Goal, GoalCreate, GoalUpdate, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, StreakSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, Goal, GoalCreate, GoalUpdate, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, Settings, SettingsUpdate, StreakSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -161,6 +161,16 @@ export function deleteGoal(id: number): Promise<void> {
 /** Mark a goal completed now; rejects with HTTP 404 if missing. */
 export function completeGoal(id: number): Promise<Goal> {
   return req(`/api/goals/${id}/complete`, { method: "POST" });
+}
+
+/** Return current application settings. */
+export function fetchSettings(): Promise<Settings> {
+  return req("/api/settings");
+}
+
+/** Update one or more settings; omitted fields are unchanged, and an explicit null clears a clearable field (e.g. a reminder time). */
+export function updateSettings(data: SettingsUpdate): Promise<Settings> {
+  return req("/api/settings", { method: "PUT", body: JSON.stringify(data) });
 }
 
 /** Return current and longest completion streaks, optionally scoped to a routine and/or child. */
