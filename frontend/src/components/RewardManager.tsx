@@ -64,6 +64,12 @@ export function RewardManager() {
     );
   };
 
+  const errors = [
+    { operation: "Create", mutation: create },
+    { operation: "Update", mutation: update },
+    { operation: "Delete", mutation: remove },
+  ].filter(({ mutation }) => mutation.isError);
+
   if (isLoading) return null;
 
   return (
@@ -100,11 +106,12 @@ export function RewardManager() {
         </button>
       </form>
 
-      {(create.isError || update.isError || remove.isError) && (
-        <p role="alert" className="text-sm text-red-500">
-          {describeError(create.error ?? update.error ?? remove.error)}
+      {errors.map(({ operation, mutation }) => (
+        <p key={operation} role="alert" className="text-sm text-red-500">
+          {errors.length > 1 && `${operation}: `}
+          {describeError(mutation.error)}
         </p>
-      )}
+      ))}
 
       <ul className="space-y-2">
         {rewards.map((reward) => (

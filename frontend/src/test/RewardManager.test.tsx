@@ -68,6 +68,35 @@ describe("RewardManager create form", () => {
 });
 
 describe("RewardManager errors", () => {
+  it.each(["Deactivate", "Delete"])("shows both failures when a pending create fails before %s", async (action) => {
+    await renderManager();
+    const createResult = deferred<Reward>();
+    const updateResult = deferred<Reward>();
+    const deleteResult = deferred<void>();
+    vi.mocked(api.createReward).mockReturnValue(createResult.promise);
+    vi.mocked(api.updateReward).mockReturnValue(updateResult.promise);
+    vi.mocked(api.deleteReward).mockReturnValue(deleteResult.promise);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
+    await act(async () => createResult.reject(new Error("API 500: create failed")));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't save that change (server error 500). Try again in a moment."
+    );
+
+    await act(async () => {
+      (action === "Delete" ? deleteResult : updateResult).reject(new Error("API 404: missing"));
+    });
+    await waitFor(() => {
+      const alerts = screen.getAllByRole("alert");
+      expect(alerts).toHaveLength(2);
+      expect(alerts[0]).toHaveTextContent("Create: Couldn't save that change (server error 500).");
+      expect(alerts[1]).toHaveTextContent(
+        `${action === "Delete" ? "Delete" : "Update"}: That reward no longer exists.`
+      );
+    });
+  });
+
   it.each([
     { form: "create", field: "Reward name" },
     { form: "create", field: "Carrot cost" },
