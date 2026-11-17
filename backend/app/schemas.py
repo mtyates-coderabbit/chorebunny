@@ -272,6 +272,38 @@ class GoalUpdate(BaseModel):
         return v
 
 
+class PushSubscriptionKeys(BaseModel):
+    """The Web Push encryption keys for a subscription, per the Web Push spec."""
+
+    p256dh: str = Field(min_length=1)
+    auth: str = Field(min_length=1)
+
+
+class PushSubscriptionCreate(BaseModel):
+    """Payload for registering a Web Push subscription; re-registering the same endpoint updates it."""
+
+    endpoint: str = Field(min_length=1)
+    keys: PushSubscriptionKeys
+    child_id: int | None = None
+
+
+class PushSubscriptionDelete(BaseModel):
+    """Payload identifying a push subscription to remove by endpoint."""
+
+    endpoint: str = Field(min_length=1)
+
+
+class PushSubscription(BaseModel):
+    """Push subscription returned from the API."""
+
+    id: int
+    endpoint: str
+    child_id: int | None
+    created_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class Goal(BaseModel):
     """Savings goal returned from the API, with progress computed from carrots earned since created_at."""
 
