@@ -39,6 +39,34 @@ beforeEach(() => {
   vi.mocked(api.deleteReward).mockResolvedValue(undefined);
 });
 
+describe("RewardManager create form", () => {
+  it("labels the name and cost inputs so they have an accessible name", async () => {
+    await renderManager();
+    expect(screen.getByLabelText("New reward name")).toBe(screen.getByPlaceholderText("Reward name"));
+    expect(screen.getByLabelText("New reward carrot cost")).toBe(screen.getByPlaceholderText("Carrot cost"));
+  });
+
+  it("shows field-specific detail for a 422 validation error", async () => {
+    await renderManager();
+    vi.mocked(api.createReward).mockRejectedValue(
+      new Error('API 422: {"detail":[{"msg":"Input should be greater than or equal to 1"}]}')
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't save: Input should be greater than or equal to 1."
+    );
+  });
+
+  it("shows a distinct message for a network/unreachable-server failure", async () => {
+    await renderManager();
+    vi.mocked(api.createReward).mockRejectedValue(new Error("Failed to fetch"));
+    await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't reach the server. Check your connection and try again."
+    );
+  });
+});
+
 describe("RewardManager errors", () => {
   it.each([
     { form: "create", field: "Reward name" },

@@ -9,6 +9,27 @@ interface EditState {
   carrot_cost: string;
 }
 
+/** Translate a thrown API error into actionable text; `req()` in api.ts throws `API {status}: {body}` for HTTP failures. */
+function describeError(error: unknown): string {
+  const message = error instanceof Error ? error.message : "";
+  const match = message.match(/^API (\d+): ([\s\S]*)$/);
+  if (!match) return "Couldn't reach the server. Check your connection and try again.";
+  const [, status, body] = match;
+  if (status === "422") {
+    try {
+      const parsed = JSON.parse(body) as { detail?: { msg: string }[] };
+      const detail = parsed.detail?.[0]?.msg;
+      if (detail) return `Couldn't save: ${detail}.`;
+    } catch {
+      // body wasn't JSON; fall through to the generic 422 message below
+    }
+    return "Couldn't save: the name can't be blank and the cost must be a whole number of at least 1.";
+  }
+  if (status === "401" || status === "403") return "You're signed out. Refresh the page and try again.";
+  if (status === "404") return "That reward no longer exists. Refresh the page to see the current list.";
+  return `Couldn't save that change (server error ${status}). Try again in a moment.`;
+}
+
 /** Parent admin section for creating, editing, deactivating, and deleting rewards. */
 export function RewardManager() {
   const { data: rewards = [], isLoading } = useRewards();
@@ -52,6 +73,7 @@ export function RewardManager() {
       <form onSubmit={handleCreate} onChange={resetErrors} className="bg-white rounded-2xl p-5 shadow-sm border border-gray-100 space-y-3">
         <h3 className="font-bold text-gray-700">Add reward</h3>
         <input
+          aria-label="New reward name"
           className="w-full border border-gray-200 rounded-xl px-3 py-2 text-sm"
           placeholder="Reward name"
           value={form.name}
@@ -59,6 +81,7 @@ export function RewardManager() {
           required
         />
         <input
+          aria-label="New reward carrot cost"
           type="number"
           min={1}
           step={1}
@@ -79,7 +102,7 @@ export function RewardManager() {
 
       {(create.isError || update.isError || remove.isError) && (
         <p role="alert" className="text-sm text-red-500">
-          Couldn&apos;t save that change. Check the name and cost, then try again.
+          {describeError(create.error ?? update.error ?? remove.error)}
         </p>
       )}
 
