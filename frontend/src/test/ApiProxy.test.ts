@@ -103,9 +103,15 @@ describe("authorized API proxy", () => {
     expect(await response.text()).toBe("API unavailable");
   });
 
-  it.each(["/api/unknown", "/api/tasks%2f..%2fadmin", "/api/tasks/1/extra", "/api/tasks/reorder", "/api/tasks/1/reorder/extra"])("rejects paths outside the API allowlist: %s", async (path) => {
+  it.each(["/api/unknown", "/api/tasks%2f..%2fadmin", "/api/tasks/1/extra", "/api/tasks/reorder", "/api/tasks/1/reorder/extra", "/api/rewards/1/extra", "/api/goals/abc", "/api/redemptions/1/approved"])("rejects paths outside the API allowlist: %s", async (path) => {
     expect((await GET(request(path))).status).toBe(404);
     expect(upstream).not.toHaveBeenCalled();
+  });
+
+  it.each(["/api/rewards", "/api/rewards/1", "/api/redemptions", "/api/redemptions/1/approve", "/api/redemptions/1/deny", "/api/goals", "/api/goals/1", "/api/goals/1/complete"])("allows reward, redemption, and goal routes: %s", async (path) => {
+    const response = await GET(request(path));
+    expect(response.status).toBe(200);
+    expect(upstream).toHaveBeenCalled();
   });
 });
 
