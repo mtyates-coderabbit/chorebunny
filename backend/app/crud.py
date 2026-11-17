@@ -304,6 +304,49 @@ def complete_goal(db: Session, goal_id: int) -> schemas.Goal | None:
     return _goal_with_progress(db, goal, rate)
 
 
+def upsert_push_subscription(db: Session, data: schemas.PushSubscriptionCreate) -> models.PushSubscription:
+    """Insert a push subscription, or update its keys and child if the endpoint is already stored."""
+    statement = insert(models.PushSubscription).values(
+        endpoint=data.endpoint,
+        p256dh=data.keys.p256dh,
+        auth=data.keys.auth,
+        child_id=data.child_id,
+    )
+    db.execute(
+        statement.on_conflict_do_update(
+            index_elements=[models.PushSubscription.endpoint],
+            set_={
+                "p256dh": statement.excluded.p256dh,
+                "auth": statement.excluded.auth,
+                "child_id": statement.excluded.child_id,
+            },
+        )
+    )
+    db.commit()
+    return db.scalars(
+        select(models.PushSubscription)
+        .where(models.PushSubscription.endpoint == data.endpoint)
+        .execution_options(populate_existing=True)
+    ).one()
+
+
+def delete_push_subscription(db: Session, endpoint: str) -> bool:
+    """Delete a push subscription by endpoint; returns False if not found."""
+    existing = db.scalar(
+        select(models.PushSubscription).where(models.PushSubscription.endpoint == endpoint)
+    )
+    if not existing:
+        return False
+    db.delete(existing)
+    db.commit()
+    return True
+
+
+def get_push_subscriptions(db: Session) -> list[models.PushSubscription]:
+    """Return all stored push subscriptions."""
+    return list(db.scalars(select(models.PushSubscription)))
+
+
 def get_tasks(
     db: Session,
     routine: str | None = None,
