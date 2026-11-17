@@ -9,17 +9,22 @@ from app import achievements, models, schemas
 
 
 def get_settings(db: Session) -> schemas.Settings:
-    """Return current settings, falling back to defaults for any missing keys."""
+    """Return current settings, falling back to defaults (or None for reminder times) for any missing keys."""
     rows = {r.key: r.value for r in db.scalars(select(models.Setting))}
     return schemas.Settings(
         morning_cutoff_hour=int(rows.get("morning_cutoff_hour", 12)),
         carrots_per_dollar=int(rows.get("carrots_per_dollar", 15)),
+        morning_reminder_time=rows.get("morning_reminder_time"),
+        evening_reminder_time=rows.get("evening_reminder_time"),
     )
 
 
 def update_settings(db: Session, data: schemas.SettingsUpdate) -> schemas.Settings:
-    """Apply non-None fields from data to the settings table and return updated settings."""
-    for key, value in data.model_dump(exclude_none=True).items():
+    """Apply explicitly provided fields to the settings table (a provided null clears a clearable setting); omitted fields are unchanged."""
+    for key, value in data.model_dump(exclude_unset=True).items():
+        if value is None:
+            db.execute(delete(models.Setting).where(models.Setting.key == key))
+            continue
         setting = db.get(models.Setting, key)
         if setting:
             setting.value = str(value)

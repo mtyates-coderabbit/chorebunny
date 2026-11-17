@@ -47,6 +47,10 @@ def client(db_engine, db, monkeypatch):
             session.close()
 
     app.dependency_overrides[get_db] = override_get_db
+    # Code outside the request path (e.g. the reminders scheduler) calls
+    # app.database.SessionLocal() directly rather than through the Depends(get_db)
+    # override above, so it's patched here too to keep tests off the real db file.
+    monkeypatch.setattr("app.database.SessionLocal", TestSession)
     with TestClient(app, headers={"X-Api-Key": "test-api-key"}) as c:
         yield c
     app.dependency_overrides.clear()

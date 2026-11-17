@@ -2,6 +2,7 @@ import Link from "next/link";
 import { ChildManager } from "@/components/ChildManager";
 import { ChoreBunnyLogo } from "@/components/ChoreBunnyLogo";
 import { RedemptionQueue } from "@/components/RedemptionQueue";
+import { ReminderSettings } from "@/components/ReminderSettings";
 import { RewardManager } from "@/components/RewardManager";
 import { TaskManager } from "@/components/TaskManager";
 
@@ -28,6 +29,7 @@ export default function TasksPage() {
       </div>
       <ChildManager />
       <RedemptionQueue />
+      <ReminderSettings />
       <RewardManager />
       <TaskManager />
     </div>

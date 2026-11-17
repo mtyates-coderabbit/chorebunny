@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.dependencies import validate_api_key, verify_api_key
+from app.reminders import start_scheduler, stop_scheduler
 from app.routers.children import router as children_router
 from app.routers.completions import router as completions_router
 from app.routers.goals import router as goals_router
@@ -18,7 +19,9 @@ from app.routers.tasks import router as tasks_router
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncIterator[None]:
     validate_api_key()
+    start_scheduler()
     yield
+    stop_scheduler()
 
 
 app = FastAPI(title="ChoreBunny API", version="1.0.0", lifespan=lifespan)

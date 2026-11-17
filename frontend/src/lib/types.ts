@@ -181,3 +181,17 @@ export interface GoalUpdate {
   name?: string;
   target_dollars?: number;
 }
+
+export interface Settings {
+  morning_cutoff_hour: number;
+  carrots_per_dollar: number;
+  morning_reminder_time: string | null;
+  evening_reminder_time: string | null;
+}
+
+export interface SettingsUpdate {
+  morning_cutoff_hour?: number;
+  carrots_per_dollar?: number;
+  morning_reminder_time?: string | null;
+  evening_reminder_time?: string | null;
+}

@@ -167,11 +167,16 @@ class StreakSummary(BaseModel):
     last_completion_date: date | None
 
 
+_REMINDER_TIME_PATTERN = r"^([01]\d|2[0-3]):[0-5]\d$"
+
+
 class Settings(BaseModel):
     """Application-wide settings returned from the API."""
 
     morning_cutoff_hour: int = Field(default=12, ge=0, le=23)
     carrots_per_dollar: int = Field(default=15, ge=1)
+    morning_reminder_time: str | None = Field(default=None, pattern=_REMINDER_TIME_PATTERN)
+    evening_reminder_time: str | None = Field(default=None, pattern=_REMINDER_TIME_PATTERN)
 
 
 class ChildBalance(BaseModel):
@@ -185,10 +190,20 @@ class ChildBalance(BaseModel):
 
 
 class SettingsUpdate(BaseModel):
-    """Partial settings update; omitted fields are unchanged."""
+    """Partial settings update; omitted fields are unchanged. An explicit null for a reminder time clears it, disabling that reminder."""
 
     morning_cutoff_hour: int | None = Field(default=None, ge=0, le=23)
     carrots_per_dollar: int | None = Field(default=None, ge=1)
+    morning_reminder_time: str | None = Field(default=None, pattern=_REMINDER_TIME_PATTERN)
+    evening_reminder_time: str | None = Field(default=None, pattern=_REMINDER_TIME_PATTERN)
+
+    @field_validator("morning_cutoff_hour", "carrots_per_dollar")
+    @classmethod
+    def _reject_explicit_null(cls: type["SettingsUpdate"], v: int | None) -> int:
+        """Reject an explicit null for settings that always have a default; omitted fields are unaffected."""
+        if v is None:
+            raise ValueError("must not be null")
+        return v
 
 
 class RewardCreate(BaseModel):
