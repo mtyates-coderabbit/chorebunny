@@ -304,6 +304,28 @@ def complete_goal(db: Session, goal_id: int) -> schemas.Goal | None:
     return _goal_with_progress(db, goal, rate)
 
 
+def get_achievements(db: Session, child_id: int) -> list[schemas.AchievementStatus]:
+    """Return every achievement definition ordered by id, each paired with the child's unlock state for it."""
+    unlocks = dict(
+        db.execute(
+            select(models.ChildAchievement.achievement_id, models.ChildAchievement.unlocked_at)
+            .where(models.ChildAchievement.child_id == child_id)
+        ).all()
+    )
+    definitions = db.scalars(select(models.Achievement).order_by(models.Achievement.id))
+    return [
+        schemas.AchievementStatus(
+            id=achievement.id,
+            name=achievement.name,
+            description=achievement.description,
+            icon=achievement.icon,
+            unlocked=achievement.id in unlocks,
+            unlocked_at=unlocks.get(achievement.id),
+        )
+        for achievement in definitions
+    ]
+
+
 def get_tasks(
     db: Session,
     routine: str | None = None,

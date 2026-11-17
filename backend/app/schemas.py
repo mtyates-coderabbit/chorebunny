@@ -122,6 +122,19 @@ class ToggleResult(BaseModel):
     newly_unlocked: list[UnlockedAchievement] = Field(default_factory=list)
 
 
+class AchievementStatus(BaseModel):
+    """A badge definition paired with one child's unlock state for it."""
+
+    id: int
+    name: str
+    description: str
+    icon: str
+    unlocked: bool
+    unlocked_at: datetime | None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class RoutineSummary(BaseModel):
     total_carrots: int
     earned_carrots: int

@@ -181,3 +181,12 @@ export interface GoalUpdate {
   name?: string;
   target_dollars?: number;
 }
+
+export interface AchievementStatus {
+  id: number;
+  name: string;
+  description: string;
+  icon: string;
+  unlocked: boolean;
+  unlocked_at: string | null;
+}
