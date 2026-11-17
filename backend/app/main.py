@@ -6,6 +6,7 @@ from fastapi import Depends, FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.dependencies import validate_api_key, verify_api_key
+from app.routers.achievements import router as achievements_router
 from app.routers.children import router as children_router
 from app.routers.completions import router as completions_router
 from app.routers.goals import router as goals_router
@@ -42,6 +43,7 @@ app.include_router(rewards_router, prefix="/api", dependencies=[Depends(verify_a
 app.include_router(redemptions_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(goals_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 app.include_router(settings_router, prefix="/api", dependencies=[Depends(verify_api_key)])
+app.include_router(achievements_router, prefix="/api", dependencies=[Depends(verify_api_key)])
 
 
 @app.get("/health")

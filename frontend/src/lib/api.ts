@@ -1,4 +1,4 @@
-import type { Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, Goal, GoalCreate, GoalUpdate, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, StreakSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
+import type { AchievementStatus, Child, ChildBalance, ChildCreate, ChildUpdate, Completion, DailySummary, Goal, GoalCreate, GoalUpdate, RangeSummary, RedemptionRequest, RedemptionStatus, Reward, RewardCreate, RewardUpdate, StreakSummary, Task, TaskAssignmentUpdate, TaskCreate, TaskUpdate, ToggleResult } from "./types";
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(path, {
@@ -161,6 +161,11 @@ export function deleteGoal(id: number): Promise<void> {
 /** Mark a goal completed now; rejects with HTTP 404 if missing. */
 export function completeGoal(id: number): Promise<Goal> {
   return req(`/api/goals/${id}/complete`, { method: "POST" });
+}
+
+/** Return every achievement with the given child's unlock state for each. */
+export function fetchAchievements(childId: number): Promise<AchievementStatus[]> {
+  return req(`/api/achievements?child_id=${childId}`);
 }
 
 /** Return current and longest completion streaks, optionally scoped to a routine and/or child. */
