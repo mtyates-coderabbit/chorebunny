@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from app import crud, schemas
 from app.config import Settings
 from app.models import PushSubscription
@@ -42,6 +44,42 @@ class TestSubscribe:
         client.post("/api/push/subscribe", json=_subscription(child_id=child_a.id))
         res = client.post("/api/push/subscribe", json=_subscription(child_id=child_b.id))
         assert res.json()["child_id"] == child_b.id
+        assert db.query(PushSubscription).count() == 1
+
+    @pytest.mark.parametrize("existing", [False, True])
+    @pytest.mark.parametrize("missing_child_id", [0, 99999])
+    def test_missing_child_rejected_before_writing(self, client, db, existing, missing_child_id):
+        if existing:
+            child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+            original = client.post(
+                "/api/push/subscribe", json=_subscription(child_id=child.id)
+            ).json()
+        res = client.post(
+            "/api/push/subscribe",
+            json=_subscription(child_id=missing_child_id, p256dh="changed", auth="changed"),
+        )
+        assert res.status_code == 404
+        assert res.json() == {"detail": "Child not found"}
+        if existing:
+            stored = db.query(PushSubscription).one()
+            assert schemas.PushSubscription.model_validate(stored).model_dump(mode="json") == original
+        else:
+            assert db.query(PushSubscription).count() == 0
+
+    def test_upsert_preserves_identity_and_creation_time(self, db):
+        child = crud.create_child(db, schemas.ChildCreate(name="Alice"))
+        original = crud.upsert_push_subscription(
+            db, schemas.PushSubscriptionCreate(**_subscription(child_id=child.id))
+        )
+        original_id, original_created_at = original.id, original.created_at
+        updated = crud.upsert_push_subscription(
+            db, schemas.PushSubscriptionCreate(**_subscription(p256dh="new-key", auth="new-auth"))
+        )
+        assert updated.id == original_id
+        assert updated.created_at == original_created_at
+        assert updated.p256dh == "new-key"
+        assert updated.auth == "new-auth"
+        assert updated.child_id is None
         assert db.query(PushSubscription).count() == 1
 
     def test_malformed_payload_rejected(self, client):
