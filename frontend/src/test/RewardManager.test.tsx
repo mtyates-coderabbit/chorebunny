@@ -39,7 +39,64 @@ beforeEach(() => {
   vi.mocked(api.deleteReward).mockResolvedValue(undefined);
 });
 
+describe("RewardManager create form", () => {
+  it("labels the name and cost inputs so they have an accessible name", async () => {
+    await renderManager();
+    expect(screen.getByLabelText("New reward name")).toBe(screen.getByPlaceholderText("Reward name"));
+    expect(screen.getByLabelText("New reward carrot cost")).toBe(screen.getByPlaceholderText("Carrot cost"));
+  });
+
+  it("shows field-specific detail for a 422 validation error", async () => {
+    await renderManager();
+    vi.mocked(api.createReward).mockRejectedValue(
+      new Error('API 422: {"detail":[{"msg":"Input should be greater than or equal to 1"}]}')
+    );
+    await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't save: Input should be greater than or equal to 1."
+    );
+  });
+
+  it("shows a distinct message for a network/unreachable-server failure", async () => {
+    await renderManager();
+    vi.mocked(api.createReward).mockRejectedValue(new Error("Failed to fetch"));
+    await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't reach the server. Check your connection and try again."
+    );
+  });
+});
+
 describe("RewardManager errors", () => {
+  it.each(["Deactivate", "Delete"])("shows both failures when a pending create fails before %s", async (action) => {
+    await renderManager();
+    const createResult = deferred<Reward>();
+    const updateResult = deferred<Reward>();
+    const deleteResult = deferred<void>();
+    vi.mocked(api.createReward).mockReturnValue(createResult.promise);
+    vi.mocked(api.updateReward).mockReturnValue(updateResult.promise);
+    vi.mocked(api.deleteReward).mockReturnValue(deleteResult.promise);
+
+    await userEvent.click(screen.getByRole("button", { name: "Add reward" }));
+    await userEvent.click(screen.getByRole("button", { name: action }));
+    await act(async () => createResult.reject(new Error("API 500: create failed")));
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Couldn't save that change (server error 500). Try again in a moment."
+    );
+
+    await act(async () => {
+      (action === "Delete" ? deleteResult : updateResult).reject(new Error("API 404: missing"));
+    });
+    await waitFor(() => {
+      const alerts = screen.getAllByRole("alert");
+      expect(alerts).toHaveLength(2);
+      expect(alerts[0]).toHaveTextContent("Create: Couldn't save that change (server error 500).");
+      expect(alerts[1]).toHaveTextContent(
+        `${action === "Delete" ? "Delete" : "Update"}: That reward no longer exists.`
+      );
+    });
+  });
+
   it.each([
     { form: "create", field: "Reward name" },
     { form: "create", field: "Carrot cost" },
