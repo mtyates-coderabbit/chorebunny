@@ -7,9 +7,11 @@ import logging
 
 from apscheduler.schedulers.background import BackgroundScheduler
 from apscheduler.triggers.cron import CronTrigger
+from requests import RequestException
 from pywebpush import WebPushException, webpush
 
-from app import crud, database
+from app import crud, database, schemas
+from app.push_transport import PushSession
 from app.config import settings
 
 logger = logging.getLogger(__name__)
@@ -43,16 +45,23 @@ def send_reminder_push(routine: str) -> None:
     })
     for subscription in subscriptions:
         try:
-            webpush(
-                subscription_info={
-                    "endpoint": subscription.endpoint,
-                    "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
-                },
-                data=payload,
-                vapid_private_key=settings.vapid_private_key,
-                vapid_claims={"sub": "mailto:admin@chorebunny.app"},
+            schemas.PushSubscriptionCreate(
+                endpoint=subscription.endpoint,
+                keys={"p256dh": subscription.p256dh, "auth": subscription.auth},
             )
-        except WebPushException:
+            with PushSession() as session:
+                webpush(
+                    subscription_info={
+                        "endpoint": subscription.endpoint,
+                        "keys": {"p256dh": subscription.p256dh, "auth": subscription.auth},
+                    },
+                    data=payload,
+                    timeout=10,
+                    requests_session=session,
+                    vapid_private_key=settings.vapid_private_key,
+                    vapid_claims={"sub": "mailto:admin@chorebunny.app"},
+                )
+        except (WebPushException, RequestException, ValueError):
             logger.exception("Failed to send %s reminder push to endpoint %s", routine, subscription.endpoint)
 
 

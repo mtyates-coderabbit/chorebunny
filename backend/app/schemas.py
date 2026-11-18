@@ -1,7 +1,13 @@
+import base64
+import re
+
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from cryptography.hazmat.primitives.asymmetric import ec
+from pydantic import BaseModel, ConfigDict, Field, ValidationInfo, field_validator
+
+from app.push_transport import validate_push_endpoint
 
 
 class ChildCreate(BaseModel):
@@ -293,6 +299,25 @@ class PushSubscriptionKeys(BaseModel):
     p256dh: str = Field(min_length=1)
     auth: str = Field(min_length=1)
 
+    @field_validator("p256dh", "auth")
+    @classmethod
+    def _validate_key(cls, value: str, info: ValidationInfo) -> str:
+        if not re.fullmatch(r"[A-Za-z0-9_-]+={0,2}", value):
+            raise ValueError("Expected base64url key")
+        unpadded = value.rstrip("=")
+        raw = base64.b64decode(unpadded + "=" * (-len(unpadded) % 4), altchars=b"-_", validate=True)
+        canonical = base64.urlsafe_b64encode(raw).decode()
+        if value not in (canonical, canonical.rstrip("=")):
+            raise ValueError("Expected canonical base64url key")
+        if info.field_name == "auth":
+            if len(raw) != 16:
+                raise ValueError("Auth secret must be 16 bytes")
+        else:
+            if len(raw) != 65 or raw[0] != 4:
+                raise ValueError("Expected an uncompressed P-256 public key")
+            ec.EllipticCurvePublicKey.from_encoded_point(ec.SECP256R1(), raw)
+        return value
+
 
 class PushSubscriptionCreate(BaseModel):
     """Payload for registering a Web Push subscription; re-registering the same endpoint updates it."""
@@ -300,6 +325,11 @@ class PushSubscriptionCreate(BaseModel):
     endpoint: str = Field(min_length=1)
     keys: PushSubscriptionKeys
     child_id: int | None = None
+
+    @field_validator("endpoint")
+    @classmethod
+    def _validate_endpoint(cls, value: str) -> str:
+        return validate_push_endpoint(value)
 
 
 class PushSubscriptionDelete(BaseModel):

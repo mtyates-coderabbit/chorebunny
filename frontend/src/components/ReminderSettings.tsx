@@ -1,29 +1,49 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { useIsMutating } from "@tanstack/react-query";
 import { useSettings, useSettingsMutation } from "@/hooks/useSettings";
 
 type ReminderField = "morning_reminder_time" | "evening_reminder_time";
 
 /** Parent admin section for setting (or clearing) the daily push-reminder time for each routine. */
 export function ReminderSettings() {
-  const { data: settings, isLoading } = useSettings();
+  const { data: settings, isPending, isError, refetch } = useSettings();
+  const pendingWrites = useIsMutating({ mutationKey: ["settings"] });
+  const failed = useRef<Partial<Record<ReminderField, string>>>({});
+  const versions = useRef({ morning_reminder_time: 0, evening_reminder_time: 0 });
+  const [hasFailures, setHasFailures] = useState(false);
   const update = useSettingsMutation();
 
   const [morning, setMorning] = useState("");
   const [evening, setEvening] = useState("");
 
   useEffect(() => {
-    if (settings) {
+    if (settings && pendingWrites === 0 && !hasFailures) {
       setMorning(settings.morning_reminder_time ?? "");
       setEvening(settings.evening_reminder_time ?? "");
     }
-  }, [settings]);
+  }, [settings, pendingWrites, hasFailures]);
 
-  if (isLoading) return null;
+  if (isPending) return <p role="status">Loading reminder settings…</p>;
+  if (isError || !settings) return (
+    <div role="alert">
+      Couldn&apos;t load reminder settings.
+      <button type="button" onClick={() => void refetch()}>Retry</button>
+    </div>
+  );
 
   const save = (field: ReminderField, value: string) => {
-    update.mutate({ [field]: value || null });
+    const version = ++versions.current[field];
+    delete failed.current[field];
+    setHasFailures(Object.keys(failed.current).length > 0);
+    update.mutateAsync({ [field]: value || null }).then(() => {
+      if (versions.current[field] === version) delete failed.current[field];
+      setHasFailures(Object.keys(failed.current).length > 0);
+    }).catch(() => {
+      if (versions.current[field] === version) failed.current[field] = value;
+      setHasFailures(Object.keys(failed.current).length > 0);
+    });
   };
 
   return (
@@ -88,9 +108,12 @@ export function ReminderSettings() {
             )}
           </div>
         </div>
-        {update.isError && (
+        {hasFailures && (
           <p role="alert" className="text-sm text-red-500">
-            Couldn&apos;t save that change. Try again.
+            Couldn&apos;t save that change.
+            <button type="button" onClick={() => {
+              for (const [field, value] of Object.entries(failed.current)) save(field as ReminderField, value);
+            }}>Retry save</button>
           </p>
         )}
       </div>

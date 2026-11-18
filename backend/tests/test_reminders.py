@@ -3,6 +3,9 @@ from __future__ import annotations
 import json
 
 import pytest
+from requests import ConnectionError, Timeout
+
+from tests.push_helpers import AUTH, KEY, push_key
 
 from app import crud, reminders, schemas
 from app.config import settings as app_settings
@@ -97,15 +100,15 @@ class TestSendReminderPush:
         crud.upsert_push_subscription(
             db,
             schemas.PushSubscriptionCreate(
-                endpoint="https://push.example/a",
-                keys=schemas.PushSubscriptionKeys(p256dh="p256dh-a", auth="auth-a"),
+                endpoint="https://fcm.googleapis.com/a",
+                keys=schemas.PushSubscriptionKeys(p256dh=KEY, auth=AUTH),
             ),
         )
         crud.upsert_push_subscription(
             db,
             schemas.PushSubscriptionCreate(
-                endpoint="https://push.example/b",
-                keys=schemas.PushSubscriptionKeys(p256dh="p256dh-b", auth="auth-b"),
+                endpoint="https://fcm.googleapis.com/b",
+                keys=schemas.PushSubscriptionKeys(p256dh=KEY, auth=AUTH),
             ),
         )
 
@@ -113,14 +116,14 @@ class TestSendReminderPush:
 
         assert len(calls) == 2
         endpoints = {call["subscription_info"]["endpoint"] for call in calls}
-        assert endpoints == {"https://push.example/a", "https://push.example/b"}
+        assert endpoints == {"https://fcm.googleapis.com/a", "https://fcm.googleapis.com/b"}
         for call in calls:
             assert call["vapid_private_key"] == "test-private-key"
             payload = json.loads(call["data"])
             assert payload["routine"] == "evening"
             assert "evening" in payload["body"]
-        a_call = next(c for c in calls if c["subscription_info"]["endpoint"] == "https://push.example/a")
-        assert a_call["subscription_info"]["keys"] == {"p256dh": "p256dh-a", "auth": "auth-a"}
+        a_call = next(c for c in calls if c["subscription_info"]["endpoint"] == "https://fcm.googleapis.com/a")
+        assert a_call["subscription_info"]["keys"] == {"p256dh": KEY, "auth": AUTH}
 
     def test_a_failed_send_does_not_stop_the_others(self, client, db, vapid_configured, monkeypatch):
         from pywebpush import WebPushException
@@ -136,19 +139,110 @@ class TestSendReminderPush:
         crud.upsert_push_subscription(
             db,
             schemas.PushSubscriptionCreate(
-                endpoint="https://push.example/fails",
-                keys=schemas.PushSubscriptionKeys(p256dh="p", auth="a"),
+                endpoint="https://fcm.googleapis.com/fails",
+                keys=schemas.PushSubscriptionKeys(p256dh=KEY, auth=AUTH),
             ),
         )
         crud.upsert_push_subscription(
             db,
             schemas.PushSubscriptionCreate(
-                endpoint="https://push.example/ok",
-                keys=schemas.PushSubscriptionKeys(p256dh="p", auth="a"),
+                endpoint="https://fcm.googleapis.com/ok",
+                keys=schemas.PushSubscriptionKeys(p256dh=KEY, auth=AUTH),
             ),
         )
 
         reminders.send_reminder_push("morning")
 
         assert len(calls) == 1
-        assert calls[0]["subscription_info"]["endpoint"] == "https://push.example/ok"
+        assert calls[0]["subscription_info"]["endpoint"] == "https://fcm.googleapis.com/ok"
+
+
+@pytest.mark.parametrize("error", [Timeout("timeout"), ConnectionError("reset"), ValueError("bad encoding")])
+def test_transport_errors_do_not_retry_or_stop_later_sends(client, db, vapid_configured, monkeypatch, error):
+    calls = []
+    for suffix in ("first", "bad", "last"):
+        crud.upsert_push_subscription(db, schemas.PushSubscriptionCreate(
+            endpoint=f"https://fcm.googleapis.com/{suffix}", keys={"p256dh": KEY, "auth": AUTH},
+        ))
+
+    def send(**kwargs):
+        calls.append(kwargs["subscription_info"]["endpoint"])
+        assert kwargs["timeout"] == 10
+        assert kwargs["requests_session"].trust_env is False
+        if calls[-1].endswith("/bad"):
+            raise error
+
+    monkeypatch.setattr(reminders, "webpush", send)
+    reminders.send_reminder_push("morning")
+    assert [url.rsplit("/", 1)[1] for url in calls] == ["first", "bad", "last"]
+
+
+def test_malformed_legacy_subscription_is_skipped(client, db, vapid_configured, monkeypatch):
+    from app.models import PushSubscription
+    db.add(PushSubscription(endpoint="https://fcm.googleapis.com/bad", p256dh="!", auth="!"))
+    db.commit()
+    crud.upsert_push_subscription(db, schemas.PushSubscriptionCreate(
+        endpoint="https://fcm.googleapis.com/ok", keys={"p256dh": KEY, "auth": AUTH},
+    ))
+    calls = []
+    monkeypatch.setattr(reminders, "webpush", lambda **kw: calls.append(kw))
+    reminders.send_reminder_push("morning")
+    assert len(calls) == 1
+    assert calls[0]["subscription_info"]["endpoint"].endswith("/ok")
+
+
+def test_settings_commit_and_reschedule_are_serialized(tmp_path, monkeypatch):
+    from concurrent.futures import ThreadPoolExecutor
+    from threading import Event
+    from sqlalchemy import create_engine
+    from sqlalchemy.orm import Session
+    from app.database import Base
+    from app.routers import settings as router
+
+    engine = create_engine(f"sqlite:///{tmp_path / 'settings.db'}")
+    Base.metadata.create_all(engine)
+    scheduling = Event()
+    release = Event()
+    second_started = Event()
+    second_committed = Event()
+    scheduled = []
+    original = crud.update_settings
+
+    def update(db, data):
+        result = original(db, data)
+        if data.morning_reminder_time == "08:00":
+            second_committed.set()
+        return result
+
+    def schedule(routine, value):
+        if value == "07:00":
+            scheduling.set()
+            assert release.wait(timeout=5)
+        scheduled.append(value)
+
+    def request(value):
+        with Session(engine) as session:
+            if value == "08:00":
+                second_started.set()
+            router.update_settings(schemas.SettingsUpdate(morning_reminder_time=value), session)
+
+    monkeypatch.setattr(crud, "update_settings", update)
+    monkeypatch.setattr(router, "reschedule_reminder", schedule)
+    try:
+        with ThreadPoolExecutor(max_workers=2) as pool:
+            first = pool.submit(request, "07:00")
+            assert scheduling.wait(timeout=5)
+            second = pool.submit(request, "08:00")
+            assert second_started.wait(timeout=5)
+            try:
+                assert not second_committed.wait(timeout=0.1)
+            finally:
+                release.set()
+            first.result(timeout=5)
+            second.result(timeout=5)
+        assert scheduled == ["07:00", "08:00"]
+        with Session(engine) as session:
+            assert crud.get_settings(session).morning_reminder_time == "08:00"
+    finally:
+        release.set()
+        engine.dispose()
